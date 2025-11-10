@@ -350,52 +350,66 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     e.preventDefault();
     if (!newStudentEmail || !user) return;
     setIsAddingStudent(true);
-
+  
     try {
       // 1. Look up student UID by email
       const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
-      const emailLookupSnap = await getDoc(emailLookupRef).catch(serverError => {
+      const emailLookupSnap = await getDoc(emailLookupRef).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
           path: emailLookupRef.path,
-          operation: 'get'
+          operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
+        // We throw the error to be caught by the outer try/catch
         throw permissionError;
       });
-
+  
       if (!emailLookupSnap.exists()) {
-        throw new Error("No student found with that email address.");
+        toast({
+          variant: 'destructive',
+          title: 'Student Not Found',
+          description: 'No student found with that email address. Please check the email and ask the student to sign up.',
+        });
+        setIsAddingStudent(false);
+        return;
       }
-      
+  
       const { uid: studentUid } = emailLookupSnap.data();
-
+  
       // 2. Get student's profile data
       const studentUserRef = doc(firestore, 'users', studentUid);
-      const studentUserSnap = await getDoc(studentUserRef).catch(serverError => {
+      const studentUserSnap = await getDoc(studentUserRef).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
           path: studentUserRef.path,
-          operation: 'get'
+          operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
         throw permissionError;
       });
-
+  
       if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
-        throw new Error("The user found is not a student.");
+        toast({
+          variant: 'destructive',
+          title: 'Invalid User',
+          description: 'The user with this email is not a student.',
+        });
+        setIsAddingStudent(false);
+        return;
       }
+      
       const studentData = studentUserSnap.data();
       const rosterData = {
         uid: studentUid,
         email: studentData.email,
         firstName: studentData.firstName,
         lastName: studentData.lastName,
-        addedAt: serverTimestamp()
+        addedAt: serverTimestamp(),
       };
-
+  
       // 3. Add student to educator's roster
       const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, rosterData).catch(serverError => {
-         const permissionError = new FirestorePermissionError({
+      await setDoc(rosterRef, rosterData).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
           path: rosterRef.path,
           operation: 'create',
           requestResourceData: rosterData,
@@ -403,21 +417,24 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
         errorEmitter.emit('permission-error', permissionError);
         throw permissionError;
       });
-
+  
       toast({
         title: 'Student Added!',
         description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
       });
       setNewStudentEmail('');
-
+  
     } catch (error: any) {
+      // The FirestorePermissionError is already emitted inside the .catch blocks
+      // so we only need to handle other potential errors here, or simply log them
+      // if the permission error is the main one we expect.
       if (!(error instanceof FirestorePermissionError)) {
-          console.error("Error adding student:", error);
-          toast({
-              variant: "destructive",
-              title: "Could not add student",
-              description: error.message || "An unexpected error occurred."
-          });
+        console.error('An unexpected error occurred while adding student:', error);
+        toast({
+          variant: 'destructive',
+          title: 'An Unexpected Error Occurred',
+          description: 'Could not add the student. Please try again later.',
+        });
       }
     } finally {
       setIsAddingStudent(false);
