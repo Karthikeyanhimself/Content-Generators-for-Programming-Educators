@@ -19,10 +19,14 @@ import {
   GenerateStudyPlanInput,
   StudyPlan,
 } from '@/ai/flows/generate-study-plan';
-import { Loader, BrainCircuit, Check, X, Target, BookOpen } from 'lucide-react';
+import { Loader, BrainCircuit, Check, X, Target, BookOpen, BookCopy, CalendarDays } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Progress } from '../ui/progress';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { collection, orderBy, query } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { Badge } from '../ui/badge';
 
 type Answer = {
   question: string;
@@ -44,6 +48,22 @@ export default function StudentDashboard() {
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
+  // Added for fetching assignments
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const assignmentsQuery = useMemoFirebase(
+    () =>
+      user
+        ? query(
+            collection(firestore, `users/${user.uid}/assignments`),
+            orderBy('dueDate', 'asc')
+          )
+        : null,
+    [firestore, user]
+  );
+  const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
+
+
   useEffect(() => {
     async function fetchQuiz() {
       if (quizData) {
@@ -59,6 +79,8 @@ export default function StudentDashboard() {
         // TODO: Set an error state
       }
     }
+    // For now, we assume every student takes the assessment once per session.
+    // A real app would check if the assessment has been taken before.
     fetchQuiz();
   }, []);
 
@@ -319,17 +341,50 @@ export default function StudentDashboard() {
             )}
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline">Assignments</CardTitle>
+                    <CardTitle className="font-headline text-2xl">Assignments</CardTitle>
+                    <CardDescription>Challenges assigned to you by your educators.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
-                        <h3 className="text-lg font-semibold text-foreground">
-                            No Assignments Yet
-                        </h3>
-                        <p className="text-muted-foreground text-sm">
-                            Your assignments from educators will appear here.
-                        </p>
-                    </div>
+                     {assignmentsLoading ? (
+                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center">
+                            <Loader className="h-8 w-8 text-muted-foreground animate-spin"/>
+                            <p className="text-muted-foreground text-sm">Loading assignments...</p>
+                        </div>
+                     ) : assignments && assignments.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {assignments.map((assignment: any) => (
+                                <Card key={assignment.id}>
+                                    <CardHeader>
+                                        <CardTitle className="text-xl">New Assignment</CardTitle>
+                                        <CardDescription>from Educator</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2">
+                                         <div className="flex items-center justify-between text-sm">
+                                            <span className="text-muted-foreground">Due Date</span>
+                                            <span>{assignment.dueDate ? format(assignment.dueDate.toDate(), 'PPP') : 'N/A'}</span>
+                                        </div>
+                                         <div className="flex items-center justify-between text-sm">
+                                            <span className="text-muted-foreground">Status</span>
+                                            <Badge variant={assignment.status === 'assigned' ? 'default' : 'secondary'}>{assignment.status}</Badge>
+                                        </div>
+                                    </CardContent>
+                                    <CardFooter>
+                                        <Button className="w-full" disabled={assignment.status !== 'assigned'}>Start Assignment</Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                     ) : (
+                        <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
+                            <BookCopy className="h-8 w-8 text-muted-foreground"/>
+                            <h3 className="text-lg font-semibold text-foreground">
+                                No Assignments Yet
+                            </h3>
+                            <p className="text-muted-foreground text-sm">
+                                Your assignments from educators will appear here.
+                            </p>
+                        </div>
+                     )}
                 </CardContent>
             </Card>
         </div>
@@ -338,3 +393,5 @@ export default function StudentDashboard() {
 
   return null;
 }
+
+    

@@ -30,7 +30,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -47,12 +47,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import {
   addDoc,
   collection,
   serverTimestamp,
+  query,
+  where,
+  orderBy
 } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 export default function EducatorDashboard() {
   const { toast } = useToast();
@@ -70,6 +74,18 @@ export default function EducatorDashboard() {
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
+
+  const assignmentsQuery = useMemoFirebase(
+    () =>
+      user
+        ? query(
+            collection(firestore, `users/${user.uid}/assignments`),
+            orderBy('createdAt', 'desc')
+          )
+        : null,
+    [firestore, user]
+  );
+  const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
 
   const handleGenerate = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -165,6 +181,8 @@ export default function EducatorDashboard() {
         title: 'Assignment Created!',
         description: 'The new scenario has been saved as an assignment draft.',
       });
+      setGeneratedData(null);
+      setSolutionTips(null);
     } catch (error) {
       console.error('Error creating assignment:', error);
       toast({
@@ -186,87 +204,133 @@ export default function EducatorDashboard() {
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
       <div className="md:col-span-4 lg:col-span-3">
-        <form onSubmit={handleGenerate}>
-          <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle className="font-headline text-xl">
-                Scenario Generator
-              </CardTitle>
-              <CardDescription>
-                Craft the perfect challenge for your students.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="theme">Theme</Label>
-                <Select value={theme} onValueChange={setTheme}>
-                  <SelectTrigger id="theme">
-                    <SelectValue placeholder="Select a theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Adventure/Fantasy">
-                      Adventure/Fantasy
-                    </SelectItem>
-                    <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
-                    <SelectItem value="Business/Real-world">
-                      Business/Real-world
-                    </SelectItem>
-                    <SelectItem value="Gaming">Gaming</SelectItem>
-                    <SelectItem value="Mystery/Detective">
-                      Mystery/Detective
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dsa-concept">DSA Concept</Label>
-                <Input
-                  id="dsa-concept"
-                  placeholder="e.g., Arrays, Trees, Graphs"
-                  value={dsaConcept}
-                  onChange={(e) => setDsaConcept(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Difficulty</Label>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {difficultyLabels[difficulty]}
-                  </span>
+        <div className="space-y-8">
+            <form onSubmit={handleGenerate}>
+            <Card className="sticky top-24">
+                <CardHeader>
+                <CardTitle className="font-headline text-xl">
+                    Scenario Generator
+                </CardTitle>
+                <CardDescription>
+                    Craft the perfect challenge for your students.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="theme">Theme</Label>
+                    <Select value={theme} onValueChange={setTheme}>
+                    <SelectTrigger id="theme">
+                        <SelectValue placeholder="Select a theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Adventure/Fantasy">
+                        Adventure/Fantasy
+                        </SelectItem>
+                        <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
+                        <SelectItem value="Business/Real-world">
+                        Business/Real-world
+                        </SelectItem>
+                        <SelectItem value="Gaming">Gaming</SelectItem>
+                        <SelectItem value="Mystery/Detective">
+                        Mystery/Detective
+                        </SelectItem>
+                    </SelectContent>
+                    </Select>
                 </div>
-                <Slider
-                  min={0}
-                  max={2}
-                  step={1}
-                  defaultValue={[difficulty]}
-                  onValueChange={(value) => setDifficulty(value[0])}
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button
-                type="submit"
-                disabled={isGenerating}
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Scenario'
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-        </form>
+
+                <div className="space-y-2">
+                    <Label htmlFor="dsa-concept">DSA Concept</Label>
+                    <Input
+                    id="dsa-concept"
+                    placeholder="e.g., Arrays, Trees, Graphs"
+                    value={dsaConcept}
+                    onChange={(e) => setDsaConcept(e.target.value)}
+                    />
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                    <Label>Difficulty</Label>
+                    <span className="text-sm font-medium text-muted-foreground">
+                        {difficultyLabels[difficulty]}
+                    </span>
+                    </div>
+                    <Slider
+                    min={0}
+                    max={2}
+                    step={1}
+                    defaultValue={[difficulty]}
+                    onValueChange={(value) => setDifficulty(value[0])}
+                    />
+                </div>
+                </CardContent>
+                <CardFooter>
+                <Button
+                    type="submit"
+                    disabled={isGenerating}
+                    className="w-full"
+                >
+                    {isGenerating ? (
+                    <>
+                        <Loader className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                    </>
+                    ) : (
+                    'Generate Scenario'
+                    )}
+                </Button>
+                </CardFooter>
+            </Card>
+            </form>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-xl">
+                        My Assignments
+                    </CardTitle>
+                    <CardDescription>
+                        Manage and track assignments you've created.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {assignmentsLoading ? (
+                        <div className="space-y-2">
+                            <div className="h-12 w-full animate-pulse rounded-md bg-muted"></div>
+                            <div className="h-12 w-full animate-pulse rounded-md bg-muted"></div>
+                        </div>
+                    ) : assignments && assignments.length > 0 ? (
+                        <div className="space-y-3">
+                            {assignments.map((assignment: any) => (
+                                <div key={assignment.id} className="rounded-lg border p-3">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-medium">Assignment Draft</p>
+                                        <Badge variant={assignment.status === 'draft' ? 'outline' : 'default'}>{assignment.status}</Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                                        <CalendarDays className="h-4 w-4" />
+                                        Created {assignment.createdAt ? format(assignment.createdAt.toDate(), 'PPP') : 'just now'}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
+                            <BookCopy className="h-8 w-8 text-muted-foreground"/>
+                            <h3 className="text-lg font-semibold text-foreground">
+                                No Assignments Yet
+                            </h3>
+                            <p className="text-muted-foreground text-sm max-w-xs">
+                                Use the generator to create a scenario, then save it as an assignment.
+                            </p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </div>
 
       <div className="md:col-span-8 lg:col-span-9">
-        <Card className="min-h-[600px]">
+        <Card className="min-h-[600px] sticky top-24">
           <CardHeader>
             <CardTitle className="font-headline">Generated Scenario</CardTitle>
             {generatedData && (
@@ -423,3 +487,5 @@ export default function EducatorDashboard() {
     </div>
   );
 }
+
+    
