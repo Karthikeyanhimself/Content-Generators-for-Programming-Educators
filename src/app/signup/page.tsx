@@ -32,23 +32,17 @@ export default function SignupPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (user) {
+    if (user && fullName) {
       // Create user profile document after user is created
       const [firstName, ...lastNameParts] = fullName.split(' ');
       const lastName = lastNameParts.join(' ');
 
-      const userProfileRef = doc(firestore, 'users', user.uid, 'profile', user.uid);
       const userRef = doc(firestore, 'users', user.uid);
       
       setDocumentNonBlocking(userRef, {
         id: user.uid,
         email: user.email,
         role: role,
-        profileData: userProfileRef.path,
-      }, { merge: true });
-
-      setDocumentNonBlocking(userProfileRef, {
-        id: user.uid,
         firstName: firstName,
         lastName: lastName,
       }, { merge: true });

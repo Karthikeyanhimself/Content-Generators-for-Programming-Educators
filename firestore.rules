@@ -9,8 +9,7 @@
  * ownership, avoiding costly `get()` calls.
  *
  * Data Structure:
- * - /users/{userId}: Stores user account information. Document ID is the userId.
- * - /users/{userId}/profile: Stores user profile details. Document ID is the userId.
+ * - /users/{userId}: Stores user account information and profile data. Document ID is the userId.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
  * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
@@ -20,7 +19,7 @@
  * - Users can only read/write their own user and profile data.
  * - Scenarios are publicly readable, but write access is restricted.
  * - Assignments are owned by the student and must have correct studentId and educatorId
- * - Listing all users or user profiles is disallowed for security reasons.
+ * - Listing all users is disallowed for security reasons.
  * - The rules do not enforce the precise shape of the data but focus on authorization.
  *
  * Denormalization for Authorization:
@@ -49,34 +48,8 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
 
-      allow get: if isOwner(userId);
+      allow read, write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && resource.data.id == userId;
-      allow delete: if isOwner(userId) && resource.data.id == userId;
-    }
-
-    /**
-     * @description Controls access to user profile documents. Users can only read/write their own profile.
-     * @path /users/{userId}/profile
-     * @allow (create) - User with UID 'user_abc' can create their profile at /users/user_abc/profile if request.auth.uid == user_abc.
-     * @allow (get) - User with UID 'user_abc' can get their profile at /users/user_abc/profile.
-     * @allow (update) - User with UID 'user_abc' can update their profile at /users/user_abc/profile.
-     * @allow (delete) - User with UID 'user_abc' can delete their profile at /users/user_abc/profile.
-     * @deny (create) - User with UID 'user_xyz' cannot create a profile at /users/user_abc/profile.
-     * @deny (get) - User with UID 'user_xyz' cannot get the profile at /users/user_abc/profile.
-     * @principle Enforces document ownership for user profiles.
-     */
-    match /users/{userId}/profile {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false; // Prevent listing all user profiles.
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && resource.data.id == userId;
-      allow delete: if isOwner(userId) && resource.data.id == userId;
     }
 
     /**
