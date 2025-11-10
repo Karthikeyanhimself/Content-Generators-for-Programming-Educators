@@ -36,7 +36,7 @@ export default function DashboardLayout({
   
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<any>(userDocRef);
 
-  // Fetch submissions only if the user is an educator
+  // Fetch submissions only if the user is an educator and the profile is loaded
   const submissionsQuery = useMemoFirebase(
     () =>
       user && userProfile?.role === 'educator'
@@ -45,7 +45,7 @@ export default function DashboardLayout({
             orderBy('submittedAt', 'desc')
           )
         : null,
-    [firestore, user, userProfile]
+    [firestore, user, userProfile] // Added userProfile to dependency array
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
@@ -116,7 +116,7 @@ export default function DashboardLayout({
                   <SidebarGroup>
                       <SidebarGroupLabel>Submissions</SidebarGroupLabel>
                       <SidebarMenu>
-                          {isLoadingSubmissions ? (
+                          {isLoadingSubmissions && !submissions ? (
                               <p className="p-2 text-xs text-muted-foreground">Loading...</p>
                           ) : submissions && submissions.length > 0 ? (
                             <ScrollArea className="h-64">
