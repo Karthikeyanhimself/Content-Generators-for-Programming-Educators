@@ -72,11 +72,11 @@ export default function AssignmentPage() {
     );
     const { data: scenarioData, isLoading: isScenarioLoading } = useDoc<ScenarioData>(scenarioDocRef);
 
-    const hintsCollectionRef = useMemoFirebase(
-        () => (assignmentData ? collection(firestore, 'scenarios', assignmentData.scenarioId, 'hints') : null),
+    const hintsQuery = useMemoFirebase(
+        () => (assignmentData ? query(collection(firestore, 'scenarios', assignmentData.scenarioId, 'hints'), orderBy('hintLevel')) : null),
         [assignmentData, firestore]
     );
-    const { data: hintsData, isLoading: areHintsLoading } = useCollection<HintData>(query(hintsCollectionRef || collection(firestore, 'dummy'), orderBy('hintLevel')));
+    const { data: hintsData, isLoading: areHintsLoading } = useCollection<HintData>(hintsQuery);
 
     const testCasesCollectionRef = useMemoFirebase(
         () => (assignmentData ? collection(firestore, 'scenarios', assignmentData.scenarioId, 'testCases') : null),
@@ -354,5 +354,3 @@ export default function AssignmentPage() {
         </div>
     );
 }
-
-    
