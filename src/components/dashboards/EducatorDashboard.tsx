@@ -69,6 +69,7 @@ import { Textarea } from '../ui/textarea';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Checkbox } from '../ui/checkbox';
 
 
 const dsaConcepts = {
@@ -140,7 +141,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   // Assignment State
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   const [assigningAssignment, setAssigningAssignment] = useState<any | null>(null);
-  const [studentToAssign, setStudentToAssign] = useState<string | null>(null);
+  const [studentsToAssign, setStudentsToAssign] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
   
@@ -371,32 +372,33 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   
   const handleConfirmAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assigningAssignment || !studentToAssign || !dueDate || !user) return;
+    if (!assigningAssignment || studentsToAssign.length === 0 || !dueDate || !user) return;
     setIsAssigning(true);
 
     try {
-        const studentId = studentToAssign;
-
-        // Create the assignment in the student's subcollection
-        const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
-        await addDoc(studentAssignmentsCollection, {
-            educatorId: user.uid,
-            scenarioId: assigningAssignment.scenarioId,
-            studentId: studentId,
-            dueDate: dueDate,
-            status: 'assigned',
-            createdAt: serverTimestamp(),
-            dsaConcept: assigningAssignment.dsaConcept,
+        const assignmentPromises = studentsToAssign.map(studentId => {
+            const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
+            return addDoc(studentAssignmentsCollection, {
+                educatorId: user.uid,
+                scenarioId: assigningAssignment.scenarioId,
+                studentId: studentId,
+                dueDate: dueDate,
+                status: 'assigned',
+                createdAt: serverTimestamp(),
+                dsaConcept: assigningAssignment.dsaConcept,
+            });
         });
 
+        await Promise.all(assignmentPromises);
+
         toast({
-            title: 'Assignment Sent!',
-            description: `Successfully assigned to the selected student.`
+            title: 'Assignments Sent!',
+            description: `Successfully assigned to ${studentsToAssign.length} student(s).`
         });
 
         // Close dialog and reset state
         setAssigningAssignment(null);
-        setStudentToAssign(null);
+        setStudentsToAssign([]);
         setDueDate(new Date());
 
     } catch (error: any) {
@@ -423,6 +425,15 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
         : [...prev, concept]
     );
   };
+  
+  const handleStudentSelection = (studentId: string) => {
+    setStudentsToAssign(prev =>
+        prev.includes(studentId)
+            ? prev.filter(id => id !== studentId)
+            : [...prev, studentId]
+    );
+  };
+
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
@@ -620,7 +631,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                         </div>
                                         <Badge variant={assignment.status === 'draft' ? 'outline' : 'default'}>{assignment.status}</Badge>
                                     </div>
-                                    <Dialog onOpenChange={(open) => { if (!open) { setAssigningAssignment(null); setStudentToAssign(null); } }}>
+                                    <Dialog onOpenChange={(open) => { if (!open) { setAssigningAssignment(null); setStudentsToAssign([]); } }}>
                                         <DialogTrigger asChild>
                                              <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setAssigningAssignment(assignment)}>
                                                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -631,22 +642,33 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                             <DialogHeader>
                                                 <DialogTitle>Assign Scenario</DialogTitle>
                                                 <DialogDescription>
-                                                    Select a student and a due date to send the assignment.
+                                                    Select students and a due date to send the assignment.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <form onSubmit={handleConfirmAssignment} className="space-y-4">
                                                 <div className="space-y-2">
-                                                    <Label>Student</Label>
-                                                    <Select onValueChange={setStudentToAssign} defaultValue={studentToAssign || undefined}>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select a student from your roster" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {students && students.length > 0 ? students.map((s:any) => (
-                                                                <SelectItem key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.email})</SelectItem>
-                                                            )) : <div className="p-4 text-sm text-muted-foreground">No students in roster.</div>}
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <Label>Students</Label>
+                                                    <Card>
+                                                        <ScrollArea className="h-40">
+                                                            <CardContent className="p-2">
+                                                                {students && students.length > 0 ? students.map((s:any) => (
+                                                                    <div key={s.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent">
+                                                                        <Checkbox 
+                                                                            id={`student-${s.id}`} 
+                                                                            onCheckedChange={() => handleStudentSelection(s.id)}
+                                                                            checked={studentsToAssign.includes(s.id)}
+                                                                        />
+                                                                        <label
+                                                                            htmlFor={`student-${s.id}`}
+                                                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                                                                        >
+                                                                            {s.firstName} {s.lastName} <span className="text-muted-foreground">({s.email})</span>
+                                                                        </label>
+                                                                    </div>
+                                                                )) : <div className="p-4 text-sm text-center text-muted-foreground">No students in roster.</div>}
+                                                            </CardContent>
+                                                        </ScrollArea>
+                                                    </Card>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Due Date</Label>
@@ -673,8 +695,8 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <Button type="submit" className="w-full" disabled={isAssigning || !studentToAssign}>
-                                                    {isAssigning ? 'Assigning...' : 'Confirm Assignment'}
+                                                <Button type="submit" className="w-full" disabled={isAssigning || studentsToAssign.length === 0}>
+                                                    {isAssigning ? 'Assigning...' : `Confirm Assignment (${studentsToAssign.length})`}
                                                 </Button>
                                             </form>
                                         </DialogContent>
