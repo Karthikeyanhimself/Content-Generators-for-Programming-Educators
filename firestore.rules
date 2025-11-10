@@ -74,7 +74,7 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId} {
       allow get, list: if true;
-      allow create: if request.auth != null; // Allow authenticated users (educators) to create
+      allow create: if request.auth != null; // Allow authenticated users (educators or SYSTEM) to create
       allow update, delete: if false;
     }
 
@@ -88,15 +88,15 @@ service cloud.firestore {
       
       // An educator can create an assignment in a student's subcollection.
       function isEducatorCreatingForStudent(userId) {
-         return request.auth != null && request.auth.uid != userId;
+         return request.auth != null && request.auth.uid != userId && isStudentInEducatorRoster(userId);
       }
 
       allow get, list: if isOwner(userId);
-      // A user can create an assignment for themselves (student or educator draft)
+      // A user can create an assignment for themselves (student taking autonomous, or educator making draft)
       allow create: if (isOwner(userId) && request.resource.data.studentId == userId) || 
                        (isOwner(userId) && request.resource.data.educatorId == userId) ||
-                       // An educator assigning to a student
-                       (isEducatorCreatingForStudent(userId) && request.resource.data.studentId == userId);
+                       // An educator assigning to a student they manage
+                       isEducatorCreatingForStudent(userId);
       
       allow update: if isExistingOwner(userId) && resource.data.studentId == userId;
       allow delete: if isExistingOwner(userId);
@@ -121,3 +121,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

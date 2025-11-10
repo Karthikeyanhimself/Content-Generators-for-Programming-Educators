@@ -133,14 +133,13 @@ export default function AssignmentPage() {
 
             await updateDoc(assignmentDocRef, submissionData)
               .catch(error => {
-                  if (error.code === 'permission-denied') {
-                      errorEmitter.emit('permission-error', new FirestorePermissionError({
-                          path: assignmentDocRef.path,
-                          operation: 'update',
-                          requestResourceData: submissionData
-                      }));
-                  }
-                  throw error; // Re-throw to be caught by the outer catch block
+                const permissionError = new FirestorePermissionError({
+                    path: assignmentDocRef.path,
+                    operation: 'update',
+                    requestResourceData: submissionData
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                throw permissionError;
               });
 
             // --- Autonomous Agent Logic ---
@@ -177,14 +176,13 @@ export default function AssignmentPage() {
             const userProfileUpdate = { learningGoals: goal.nextGoal };
             await updateDoc(userDocRefToUpdate, userProfileUpdate)
                 .catch(error => {
-                    if (error.code === 'permission-denied') {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({
-                            path: userDocRefToUpdate.path,
-                            operation: 'update',
-                            requestResourceData: userProfileUpdate
-                        }));
-                    }
-                     throw error;
+                    const permissionError = new FirestorePermissionError({
+                        path: userDocRefToUpdate.path,
+                        operation: 'update',
+                        requestResourceData: userProfileUpdate
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw permissionError;
                 });
 
             // Step 8: Create the new scenario and assignment in Firestore
@@ -198,18 +196,19 @@ export default function AssignmentPage() {
             };
             const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), newScenarioData)
                 .catch(error => {
-                     if (error.code === 'permission-denied') {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({
-                            path: 'scenarios',
-                            operation: 'create',
-                            requestResourceData: newScenarioData
-                        }));
-                     }
-                     throw error;
+                    const permissionError = new FirestorePermissionError({
+                        path: 'scenarios',
+                        operation: 'create',
+                        requestResourceData: newScenarioData
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw permissionError;
                 });
-
+            
+            // Generate a unique ID for the new assignment on the client
+            const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`));
             const newAssignmentData = {
-                id: doc(collection(firestore, 'a')).id,
+                id: newAssignmentRef.id, // Use the generated ID
                 educatorId: 'SYSTEM',
                 scenarioId: newScenarioRef.id,
                 studentId: user.uid,
@@ -219,29 +218,27 @@ export default function AssignmentPage() {
                 dsaConcept: nextAssignment.dsaConcept,
                 isAutonomouslyGenerated: true,
             };
-            const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`), newAssignmentData.id);
+            
             await setDoc(newAssignmentRef, newAssignmentData)
                 .catch(error => {
-                    if (error.code === 'permission-denied') {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({
-                            path: newAssignmentRef.path,
-                            operation: 'create',
-                            requestResourceData: newAssignmentData
-                        }));
-                    }
-                    throw error;
+                    const permissionError = new FirestorePermissionError({
+                        path: newAssignmentRef.path,
+                        operation: 'create',
+                        requestResourceData: newAssignmentData
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw permissionError;
                 });
 
             // Create hints for the new scenario
             const hintsCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'hints');
             for (const [index, hintContent] of nextAssignment.hints.entries()) {
                  addDoc(hintsCollection, { hintLevel: index + 1, content: hintContent }).catch(error => {
-                    if (error.code === 'permission-denied') {
-                         errorEmitter.emit('permission-error', new FirestorePermissionError({
-                            path: `scenarios/${newScenarioRef.id}/hints`,
-                            operation: 'create',
-                         }));
-                    }
+                    const permissionError = new FirestorePermissionError({
+                        path: `scenarios/${newScenarioRef.id}/hints`,
+                        operation: 'create',
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
                 });
             }
 
@@ -249,13 +246,12 @@ export default function AssignmentPage() {
             const testCasesCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'testCases');
             for (const testCase of nextAssignment.testCases) {
                 addDoc(testCasesCollection, testCase).catch(error => {
-                     if (error.code === 'permission-denied') {
-                         errorEmitter.emit('permission-error', new FirestorePermissionError({
-                            path: `scenarios/${newScenarioRef.id}/testCases`,
-                            operation: 'create',
-                            requestResourceData: testCase
-                         }));
-                    }
+                    const permissionError = new FirestorePermissionError({
+                        path: `scenarios/${newScenarioRef.id}/testCases`,
+                        operation: 'create',
+                        requestResourceData: testCase
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
                 });
             }
 
@@ -265,16 +261,14 @@ export default function AssignmentPage() {
             });
 
         } catch (error) {
-            console.error("An error occurred during submission:", error);
-            // The specific permission errors are already emitted.
-            // This catch block handles other unexpected errors.
-            if (!(error instanceof FirestorePermissionError) && (error as any)?.code !== 'permission-denied') {
-                toast({
+             if (!(error instanceof FirestorePermissionError)) {
+                 console.error("An unexpected error occurred during submission:", error);
+                 toast({
                     variant: 'destructive',
                     title: "An Unexpected Error Occurred",
                     description: "There was a problem submitting your assignment. Please try again later."
                 });
-            }
+             }
         } finally {
             setIsSubmitting(false);
         }
@@ -483,3 +477,5 @@ export default function AssignmentPage() {
         </div>
     );
 }
+
+    
