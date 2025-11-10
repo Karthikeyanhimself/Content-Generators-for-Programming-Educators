@@ -52,6 +52,8 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  getDoc,
+  doc,
   setDoc,
   deleteDoc
 } from 'firebase/firestore';
@@ -65,6 +67,18 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 
 const dsaConcepts = {
@@ -139,6 +153,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [studentsToAssign, setStudentsToAssign] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Roster State
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
   
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
@@ -328,6 +346,77 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   }
 
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudentEmail || !user) return;
+    setIsAddingStudent(true);
+
+    try {
+      // 1. Look up student UID by email
+      const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
+      const emailLookupSnap = await getDoc(emailLookupRef);
+
+      if (!emailLookupSnap.exists()) {
+        throw new Error("No student found with that email address.");
+      }
+      
+      const { uid: studentUid } = emailLookupSnap.data();
+
+      // 2. Get student's profile data
+      const studentUserRef = doc(firestore, 'users', studentUid);
+      const studentUserSnap = await getDoc(studentUserRef);
+
+      if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
+        throw new Error("The user found is not a student.");
+      }
+      const studentData = studentUserSnap.data();
+
+      // 3. Add student to educator's roster
+      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
+      await setDoc(rosterRef, {
+        uid: studentUid,
+        email: studentData.email,
+        firstName: studentData.firstName,
+        lastName: studentData.lastName,
+        addedAt: serverTimestamp()
+      });
+
+      toast({
+        title: 'Student Added!',
+        description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
+      });
+      setNewStudentEmail('');
+
+    } catch (error: any) {
+      console.error("Error adding student:", error);
+      toast({
+        variant: "destructive",
+        title: "Could not add student",
+        description: error.message || "An unexpected error occurred."
+      });
+    } finally {
+      setIsAddingStudent(false);
+    }
+  };
+
+  const handleRemoveStudent = async (studentId: string) => {
+    if (!user) return;
+    const rosterRef = doc(firestore, `users/${user.uid}/students/${studentId}`);
+    try {
+        await deleteDoc(rosterRef);
+        toast({
+            title: "Student Removed",
+            description: "The student has been removed from your roster."
+        })
+    } catch(error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error Removing Student',
+            description: error.message || 'There was a problem removing the student.'
+        })
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied to clipboard!' });
@@ -467,6 +556,69 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 </CardFooter>
             </Card>
             </form>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-xl">My Roster</CardTitle>
+                    <CardDescription>Add and manage students in your class.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleAddStudent} className="flex items-center gap-2 mb-4">
+                        <Input
+                            type="email"
+                            placeholder="Student's email address"
+                            value={newStudentEmail}
+                            onChange={(e) => setNewStudentEmail(e.target.value)}
+                            disabled={isAddingStudent}
+                        />
+                        <Button type="submit" size="icon" disabled={isAddingStudent || !newStudentEmail}>
+                            {isAddingStudent ? <Loader className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                        </Button>
+                    </form>
+
+                    <ScrollArea className="h-48">
+                         {studentsLoading ? (
+                            <div className="p-4 text-center text-sm text-muted-foreground">Loading roster...</div>
+                        ) : students && students.length > 0 ? (
+                            <div className="space-y-2">
+                                {students.map((s: any) => (
+                                    <div key={s.id} className="flex items-center justify-between p-2 rounded-md bg-background border">
+                                        <div>
+                                            <p className="font-medium text-sm">{s.firstName} {s.lastName}</p>
+                                            <p className="text-xs text-muted-foreground">{s.email}</p>
+                                        </div>
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently remove {s.firstName} from your roster. They will no longer be able to receive assignments from you.
+                                                </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleRemoveStudent(s.id)} className="bg-destructive hover:bg-destructive/90">
+                                                    Remove Student
+                                                </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg">
+                                Your roster is empty. Add students using their email.
+                            </div>
+                        )}
+                    </ScrollArea>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
