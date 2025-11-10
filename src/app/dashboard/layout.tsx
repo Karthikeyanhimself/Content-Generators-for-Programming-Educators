@@ -71,7 +71,7 @@ export default function DashboardLayout({
                     <BrainCircuit className="h-6 w-6 text-primary" />
                     <span className="font-headline group-data-[collapsible=icon]:hidden">AlgoGenius</span>
                 </Link>
-                <SidebarTrigger className="group-data-[collapsible=icon]:hidden ml-auto group-data-[collapsible=icon]:rotate-180">
+                <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:rotate-180">
                     <PanelLeft/>
                 </SidebarTrigger>
             </SidebarHeader>
