@@ -82,7 +82,6 @@ const dsaConcepts = {
     "Modified Binary Search",
     "Top 'K' Elements",
     "K-way Merge",
-    "Topological Sort",
   ],
   "Data Structures": [
     "Array",
