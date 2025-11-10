@@ -14,7 +14,7 @@ const QuizQuestionSchema = z.object({
   dsaConcept: z.string().describe('The DSA concept this question relates to.'),
 });
 
-export const GenerateQuizOutputSchema = z.object({
+const GenerateQuizOutputSchema = z.object({
   questions: z.array(QuizQuestionSchema).length(5).describe('An array of 5 quiz questions.'),
 });
 export type GenerateQuizOutput = z.infer<typeof GenerateQuizOutputSchema>;
