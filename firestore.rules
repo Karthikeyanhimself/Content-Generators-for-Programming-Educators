@@ -15,6 +15,7 @@
  * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
+ * - /educators/{educatorId}/submissions/{submissionId}: Denormalized submissions for easy querying.
  * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
  * - /scenarios/{scenarioId}/testCases/{testCaseId}: Stores test cases for a specific scenario.
  *
@@ -101,6 +102,28 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId) && resource.data.studentId == userId;
       allow delete: if isExistingOwner(userId);
     }
+
+    /**
+     * @description Denormalized submissions for easy educator querying.
+     * - An educator can read/list their own submissions.
+     * - A student can create a submission record only if the educatorId matches the one on their original assignment.
+     */
+    match /educators/{educatorId}/submissions/{submissionId} {
+      allow read, list: if isOwner(educatorId);
+
+      function isStudentTheSubmitter() {
+        return request.auth != null && request.resource.data.studentId == request.auth.uid;
+      }
+
+      function doesOriginalAssignmentBelongToEducator(educatorId) {
+        let originalAssignmentPath = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
+        return get(originalAssignmentPath).data.educatorId == educatorId;
+      }
+
+      allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
+      allow update, delete: if false;
+    }
+
 
     /**
      * @description Controls access to hint documents. Hints are readable, but write access is denied.

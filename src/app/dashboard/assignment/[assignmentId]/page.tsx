@@ -35,6 +35,7 @@ type AssignmentData = {
     score?: number;
     feedback?: string;
     solutionCode?: string;
+    educatorId: string;
 };
 
 type ScenarioData = {
@@ -121,6 +122,8 @@ export default function AssignmentPage() {
             const studyPlanResult = await generateStudyPlan(studyPlanInput);
             
             setSubmissionResult({ assessment: assessmentResult, studyPlan: studyPlanResult });
+            
+            const submittedAtTimestamp = serverTimestamp();
 
             // Step 3: Update the current assignment document with the results
             const submissionData = {
@@ -128,7 +131,7 @@ export default function AssignmentPage() {
                 score: assessmentResult.score,
                 feedback: assessmentResult.feedback,
                 status: 'completed' as const,
-                submittedAt: serverTimestamp(),
+                submittedAt: submittedAtTimestamp,
             };
 
             await updateDoc(assignmentDocRef, submissionData)
@@ -142,12 +145,37 @@ export default function AssignmentPage() {
                 throw permissionError;
               });
 
+            // Step 3.5: Denormalize submission for educator
+            if (assignmentData.educatorId && assignmentData.educatorId !== 'SYSTEM') {
+                const educatorSubmissionsRef = collection(firestore, 'educators', assignmentData.educatorId, 'submissions');
+                const submissionRecord = {
+                    studentId: user.uid,
+                    studentEmail: user.email,
+                    studentName: `${user.displayName || user.email}`,
+                    originalAssignmentId: assignmentData.id,
+                    dsaConcept: assignmentData.dsaConcept,
+                    score: assessmentResult.score,
+                    feedback: assessmentResult.feedback,
+                    solutionCode: solutionCode,
+                    submittedAt: submittedAtTimestamp,
+                };
+                 addDoc(educatorSubmissionsRef, submissionRecord).catch(error => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `educators/${(assignmentData as any).educatorId}/submissions`,
+                        operation: 'create',
+                        requestResourceData: submissionRecord,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                });
+            }
+
+
             // --- Autonomous Agent Logic ---
             // Step 4: Fetch recent performance history
             const historyQuery = query(
                 collection(firestore, 'users', user.uid, 'assignments'),
                 orderBy('submittedAt', 'desc'),
-                limit(10) // Fetch more and filter in-client
+                limit(10)
             );
             const historySnapshot = await getDocs(historyQuery);
             const performanceHistory = historySnapshot.docs
@@ -478,3 +506,5 @@ export default function AssignmentPage() {
         </div>
     );
 }
+
+    

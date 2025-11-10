@@ -134,6 +134,24 @@
       },
       "required": [ "id", "educatorId", "studentId", "scenarioId", "dueDate", "status" ]
     },
+    "StudentSubmission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudentSubmission",
+      "type": "object",
+      "description": "Represents a denormalized student submission for easier querying by educators.",
+      "properties": {
+        "studentId": { "type": "string", "description": "ID of the Student who submitted." },
+        "studentEmail": { "type": "string", "description": "Email of the Student." },
+        "studentName": { "type": "string", "description": "Full name of the Student." },
+        "originalAssignmentId": { "type": "string", "description": "ID of the original assignment in the student's collection." },
+        "dsaConcept": { "type": "string", "description": "The primary DSA concept for the assignment." },
+        "score": { "type": "number", "description": "The score (0-100) from AI assessment." },
+        "feedback": { "type": "string", "description": "AI-generated feedback on the submission." },
+        "solutionCode": { "type": "string", "description": "The code submitted by the student." },
+        "submittedAt": { "type": "string", "format": "date-time", "description": "Timestamp of submission." }
+      },
+      "required": [ "studentId", "studentEmail", "studentName", "originalAssignmentId", "dsaConcept", "score", "feedback", "solutionCode", "submittedAt" ]
+    },
     "Hint": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Hint",
@@ -341,8 +359,30 @@
             }
           ]
         }
+      },
+      {
+        "path": "/educators/{educatorId}/submissions/{submissionId}",
+        "definition": {
+          "entityName": "StudentSubmission",
+          "schema": {
+            "$ref": "#/backend/entities/StudentSubmission"
+          },
+          "description": "Stores denormalized student submissions for easy querying by educators.",
+          "params": [
+            {
+              "name": "educatorId",
+              "description": "The unique identifier of the educator."
+            },
+            {
+              "name": "submissionId",
+              "description": "The unique identifier of the submission record."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the AlgoGenius platform, emphasizing secure and scalable data management for users, scenarios, assignments, hints, and test cases. The structure prioritizes authorization independence, clarity, and predictable security rules. This design adheres to the specified principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and Rules Are Not Filters. \n\n**Authorization Independence:** Authorization is primarily achieved through path-based ownership and denormalization.  For example, assignments are stored under `/users/{userId}/assignments/{assignmentId}` facilitating straightforward ownership checks without requiring `get()` calls.  Fields like `educatorId` and `studentId` within the Assignment document ensure that the necessary information for authorization is available locally, avoiding hierarchical dependencies.\n\n**Structural Segregation:** Data with different access requirements are stored in separate collections. User data is kept under `/users/{userId}`, while scenarios are stored in a separate `/scenarios` collection. This segregation simplifies security rules by ensuring that each collection has a homogeneous security posture.\n\n**Access Modeling:** Private user data is stored using path-based ownership under the `/users/{userId}` collection.  Assignments, hints and test cases are stored as subcollections under Scenarios or Users, depending on the ownership and sharing requirements.  Collaborative access is handled through direct ownership. Scenarios are globally accessible (since they are system-generated) and can be referenced by IDs in assignments.\n\n**QAPs (Rules are not Filters):** The structure allows for secure listing operations. By storing assignments under `/users/{userId}/assignments/{assignmentId}`, listing assignments for a specific user only requires querying this collection, which is inherently secure due to the path-based ownership. Separate collections for scenarios and user profiles further enhance the ability to apply specific security rules to different data types.\n\n**Invariants:** The structure supports integrity constraints by leveraging path-based ownership and server-side timestamping. Ownership is enforced through the document path (e.g., `/users/{userId}/assignments/{assignmentId}` ensures the assignment belongs to the specified user)."
+    "reasoning": "The Firestore data structure is designed to support the AlgoGenius platform, emphasizing secure and scalable data management for users, scenarios, assignments, hints, and test cases. The structure prioritizes authorization independence, clarity, and predictable security rules. This design adheres to the specified principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and Rules Are Not Filters. \n\n**Authorization Independence:** Authorization is primarily achieved through path-based ownership and denormalization.  For example, assignments are stored under `/users/{userId}/assignments/{assignmentId}` facilitating straightforward ownership checks without requiring `get()` calls.  Fields like `educatorId` and `studentId` within the Assignment document ensure that the necessary information for authorization is available locally, avoiding hierarchical dependencies.\n\n**Structural Segregation:** Data with different access requirements are stored in separate collections. User data is kept under `/users/{userId}`, while scenarios are stored in a separate `/scenarios` collection. This segregation simplifies security rules by ensuring that each collection has a homogeneous security posture.\n\n**Access Modeling:** Private user data is stored using path-based ownership under the `/users/{userId}` collection.  Assignments, hints and test cases are stored as subcollections under Scenarios or Users, depending on the ownership and sharing requirements.  Collaborative access is handled through direct ownership. Scenarios are globally accessible (since they are system-generated) and can be referenced by IDs in assignments.\n\n**QAPs (Rules are not Filters):** The structure allows for secure listing operations. By storing assignments under `/users/{userId}/assignments/{assignmentId}`, listing assignments for a specific user only requires querying this collection, which is inherently secure due to the path-based ownership. A new denormalized collection `/educators/{educatorId}/submissions` is added for educators to easily and securely query all submissions from their students without complex, multi-collection queries, simplifying the educator dashboard experience. Separate collections for scenarios and user profiles further enhance the ability to apply specific security rules to different data types.\n\n**Invariants:** The structure supports integrity constraints by leveraging path-based ownership and server-side timestamping. Ownership is enforced through the document path (e.g., `/users/{userId}/assignments/{assignmentId}` ensures the assignment belongs to the specified user)."
   }
 }
+
+    

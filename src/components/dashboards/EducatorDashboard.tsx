@@ -163,10 +163,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
 
-  // Submissions State
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
-  
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
   const assignmentsQuery = useMemoFirebase(
@@ -193,71 +189,17 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   );
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
 
-   // Effect to fetch all submissions from all students in the roster
-  useEffect(() => {
-    if (!user || !firestore || studentsLoading) {
-      return;
-    }
-
-    const fetchSubmissions = async () => {
-      setIsLoadingSubmissions(true);
-      if (!students || students.length === 0) {
-        setSubmissions([]);
-        setIsLoadingSubmissions(false);
-        return;
-      }
-
-      try {
-        const allSubmissions: any[] = [];
-        
-        // Create an array of promises for all the queries
-        const submissionPromises = students.map((student: any) => {
-          const submissionsQuery = query(
-            collection(firestore, `users/${student.uid}/assignments`),
-            where('status', '==', 'completed'),
-            where('educatorId', '==', user.uid)
-          );
-          return getDocs(submissionsQuery);
-        });
-
-        // Wait for all queries to complete
-        const querySnapshots = await Promise.all(submissionPromises);
-
-        // Process the results
-        querySnapshots.forEach((snapshot, index) => {
-          const studentInfo = students[index];
-          snapshot.forEach((doc) => {
-            allSubmissions.push({
-              id: doc.id,
-              ...doc.data(),
-              studentName: `${studentInfo.firstName} ${studentInfo.lastName}`,
-            });
-          });
-        });
-
-        // Sort the combined submissions by date
-        allSubmissions.sort((a, b) => {
-          const dateA = a.submittedAt?.toDate() || 0;
-          const dateB = b.submittedAt?.toDate() || 0;
-          return dateB - dateA;
-        });
-
-        setSubmissions(allSubmissions);
-
-      } catch (error) {
-        console.error("Error fetching submissions: ", error);
-        toast({
-          variant: 'destructive',
-          title: 'Could not load submissions',
-          description: 'There was a problem fetching student assignment data.'
-        });
-      } finally {
-        setIsLoadingSubmissions(false);
-      }
-    };
-
-    fetchSubmissions();
-  }, [user, firestore, students, studentsLoading, toast]);
+  const submissionsQuery = useMemoFirebase(
+    () =>
+        user
+        ? query(
+            collection(firestore, `educators/${user.uid}/submissions`),
+            orderBy('submittedAt', 'desc')
+            )
+        : null,
+    [firestore, user]
+  );
+  const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
 
   const handleGenerate = async (e?: React.FormEvent) => {
@@ -1018,7 +960,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 <CardContent>
                     {isLoadingSubmissions ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">Loading submissions...</div>
-                    ) : submissions.length > 0 ? (
+                    ) : submissions && submissions.length > 0 ? (
                          <Table>
                             <TableHeader>
                                 <TableRow>
@@ -1088,3 +1030,5 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
+
+    
