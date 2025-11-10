@@ -30,7 +30,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2 } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -56,7 +56,9 @@ import {
   where,
   orderBy,
   getDoc,
-  doc
+  doc,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
@@ -66,6 +68,7 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 
 
 const dsaConcepts = {
@@ -123,6 +126,7 @@ export default function EducatorDashboard() {
   const firestore = useFirestore();
   const { user } = useUser();
 
+  // Scenario Generator State
   const [theme, setTheme] = useState('Adventure/Fantasy');
   const [selectedConcepts, setSelectedConcepts] = useState<string[]>(['Array']);
   const [difficulty, setDifficulty] = useState(1);
@@ -132,12 +136,17 @@ export default function EducatorDashboard() {
   const [solutionTips, setSolutionTips] =
     useState<SuggestSolutionApproachTipsOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   
+  // Assignment State
+  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   const [assigningAssignment, setAssigningAssignment] = useState<any | null>(null);
-  const [studentEmail, setStudentEmail] = useState('');
+  const [studentToAssign, setStudentToAssign] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
+  
+  // Student Roster State
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
 
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
@@ -153,6 +162,19 @@ export default function EducatorDashboard() {
     [firestore, user]
   );
   const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
+  
+  const studentsQuery = useMemoFirebase(
+    () =>
+      user
+        ? query(
+            collection(firestore, `users/${user.uid}/students`),
+            orderBy('addedAt', 'desc')
+          )
+        : null,
+    [firestore, user]
+  );
+  const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
+
 
   const handleGenerate = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -271,30 +293,91 @@ export default function EducatorDashboard() {
       setIsCreatingAssignment(false);
     }
   };
-  
-  const handleConfirmAssignment = async (e: React.FormEvent) => {
+
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assigningAssignment || !studentEmail || !dueDate || !user) return;
-    setIsAssigning(true);
+    if (!newStudentEmail || !user) return;
+    setIsAddingStudent(true);
 
     try {
-        // 1. Find the student by email
-        const studentEmailRef = doc(firestore, 'users-by-email', studentEmail);
+        // 1. Check if the user exists in `users-by-email`
+        const studentEmailRef = doc(firestore, 'users-by-email', newStudentEmail);
         const studentEmailSnap = await getDoc(studentEmailRef);
 
         if (!studentEmailSnap.exists()) {
-            toast({
-                variant: 'destructive',
-                title: 'Student not found',
-                description: `No student found with the email: ${studentEmail}`
-            });
-            setIsAssigning(false);
-            return;
+            throw new Error(`No user found with the email: ${newStudentEmail}`);
         }
 
+        // 2. Get student's main user document to check role and get name
         const studentId = studentEmailSnap.data().uid;
+        const studentUserRef = doc(firestore, 'users', studentId);
+        const studentUserSnap = await getDoc(studentUserRef);
+        
+        if (!studentUserSnap.exists()) {
+             throw new Error(`Could not find profile for user: ${newStudentEmail}`);
+        }
+        
+        const studentData = studentUserSnap.data();
+        if (studentData.role !== 'student') {
+             throw new Error(`User ${newStudentEmail} is not a student.`);
+        }
 
-        // 2. Create the assignment in the student's subcollection
+        // 3. Add student to the educator's student subcollection
+        const educatorStudentRef = doc(firestore, 'users', user.uid, 'students', studentId);
+        await setDoc(educatorStudentRef, {
+            uid: studentId,
+            email: studentData.email,
+            firstName: studentData.firstName,
+            lastName: studentData.lastName,
+            addedAt: serverTimestamp(),
+        });
+
+        toast({
+            title: 'Student Added!',
+            description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`
+        });
+        setNewStudentEmail('');
+
+    } catch (error: any) {
+        console.error('Error adding student:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Add Student',
+            description: error.message || 'An unknown error occurred.'
+        });
+    } finally {
+        setIsAddingStudent(false);
+    }
+  };
+
+  const handleRemoveStudent = async (studentId: string) => {
+    if (!user || !studentId) return;
+
+    try {
+      await deleteDoc(doc(firestore, 'users', user.uid, 'students', studentId));
+      toast({
+        title: 'Student Removed',
+        description: 'The student has been removed from your roster.',
+      });
+    } catch (error: any) {
+       console.error('Error removing student:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Remove Student',
+            description: error.message || 'An unknown error occurred.'
+        });
+    }
+  };
+  
+  const handleConfirmAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningAssignment || !studentToAssign || !dueDate || !user) return;
+    setIsAssigning(true);
+
+    try {
+        const studentId = studentToAssign;
+
+        // Create the assignment in the student's subcollection
         const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
         await addDoc(studentAssignmentsCollection, {
             educatorId: user.uid,
@@ -308,12 +391,12 @@ export default function EducatorDashboard() {
 
         toast({
             title: 'Assignment Sent!',
-            description: `Successfully assigned to ${studentEmail}.`
+            description: `Successfully assigned to the selected student.`
         });
 
         // Close dialog and reset state
         setAssigningAssignment(null);
-        setStudentEmail('');
+        setStudentToAssign(null);
         setDueDate(new Date());
 
     } catch (error: any) {
@@ -460,6 +543,55 @@ export default function EducatorDashboard() {
             </form>
 
             <Card>
+              <CardHeader>
+                <CardTitle className="font-headline text-xl">My Students</CardTitle>
+                <CardDescription>Add and manage your student roster.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAddStudent} className="flex gap-2">
+                  <Input 
+                    type="email"
+                    placeholder="student@example.com"
+                    value={newStudentEmail}
+                    onChange={(e) => setNewStudentEmail(e.target.value)}
+                    disabled={isAddingStudent}
+                    required
+                  />
+                  <Button type="submit" size="icon" disabled={isAddingStudent}>
+                    {isAddingStudent ? <Loader className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                    <span className="sr-only">Add Student</span>
+                  </Button>
+                </form>
+                <div className="mt-4 space-y-2">
+                  {studentsLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading students...</p>
+                  ) : students && students.length > 0 ? (
+                    <ScrollArea className="h-40">
+                      {students.map((student: any) => (
+                        <div key={student.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                                <AvatarFallback>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-medium text-sm">{student.firstName} {student.lastName}</p>
+                                <p className="text-xs text-muted-foreground">{student.email}</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemoveStudent(student.id)}>
+                            <Trash2 className="h-4 w-4 text-red-500/70" />
+                          </Button>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  ) : (
+                    <p className="text-sm text-center text-muted-foreground pt-4">No students added yet.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
                 <CardHeader>
                     <CardTitle className="font-headline text-xl">
                         My Assignments
@@ -488,7 +620,7 @@ export default function EducatorDashboard() {
                                         </div>
                                         <Badge variant={assignment.status === 'draft' ? 'outline' : 'default'}>{assignment.status}</Badge>
                                     </div>
-                                    <Dialog onOpenChange={(open) => !open && setAssigningAssignment(null)}>
+                                    <Dialog onOpenChange={(open) => { if (!open) { setAssigningAssignment(null); setStudentToAssign(null); } }}>
                                         <DialogTrigger asChild>
                                              <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setAssigningAssignment(assignment)}>
                                                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -499,20 +631,22 @@ export default function EducatorDashboard() {
                                             <DialogHeader>
                                                 <DialogTitle>Assign Scenario</DialogTitle>
                                                 <DialogDescription>
-                                                    Enter the student's email and a due date to send the assignment.
+                                                    Select a student and a due date to send the assignment.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <form onSubmit={handleConfirmAssignment} className="space-y-4">
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="student-email">Student Email</Label>
-                                                    <Input 
-                                                        id="student-email"
-                                                        type="email"
-                                                        placeholder="student@example.com"
-                                                        value={studentEmail}
-                                                        onChange={(e) => setStudentEmail(e.target.value)}
-                                                        required
-                                                    />
+                                                    <Label>Student</Label>
+                                                    <Select onValueChange={setStudentToAssign} defaultValue={studentToAssign || undefined}>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select a student from your roster" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {students && students.length > 0 ? students.map((s:any) => (
+                                                                <SelectItem key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.email})</SelectItem>
+                                                            )) : <div className="p-4 text-sm text-muted-foreground">No students in roster.</div>}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Due Date</Label>
@@ -539,7 +673,7 @@ export default function EducatorDashboard() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <Button type="submit" className="w-full" disabled={isAssigning}>
+                                                <Button type="submit" className="w-full" disabled={isAssigning || !studentToAssign}>
                                                     {isAssigning ? 'Assigning...' : 'Confirm Assignment'}
                                                 </Button>
                                             </form>
@@ -730,3 +864,5 @@ export default function EducatorDashboard() {
     </div>
   );
 }
+
+    

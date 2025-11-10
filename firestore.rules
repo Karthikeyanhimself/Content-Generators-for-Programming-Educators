@@ -10,6 +10,7 @@
  *
  * Data Structure:
  * - /users/{userId}: Stores user account information and profile data. Document ID is the userId.
+ * - /users/{userId}/students/{studentId}: An educator's roster of students.
  * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
@@ -37,6 +38,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
+    }
+    
+    /**
+     * @description Educator's student roster. Only the educator can manage their own roster.
+     */
+    match /users/{userId}/students/{studentId} {
+      allow read, write, delete: if isOwner(userId);
     }
 
     /**
@@ -106,3 +114,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
