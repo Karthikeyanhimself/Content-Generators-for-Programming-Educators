@@ -145,11 +145,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
   
-  // Student Roster State
-  const [newStudentEmail, setNewStudentEmail] = useState('');
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
-
-
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
   const assignmentsQuery = useMemoFirebase(
@@ -295,81 +290,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   };
 
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStudentEmail || !user) return;
-    setIsAddingStudent(true);
-
-    try {
-        // 1. Check if the user exists in `users-by-email`
-        const studentEmailRef = doc(firestore, 'users-by-email', newStudentEmail);
-        const studentEmailSnap = await getDoc(studentEmailRef);
-
-        if (!studentEmailSnap.exists()) {
-            throw new Error(`No user found with the email: ${newStudentEmail}`);
-        }
-
-        // 2. Get student's main user document to check role and get name
-        const studentId = studentEmailSnap.data().uid;
-        const studentUserRef = doc(firestore, 'users', studentId);
-        const studentUserSnap = await getDoc(studentUserRef);
-        
-        if (!studentUserSnap.exists()) {
-             throw new Error(`Could not find profile for user: ${newStudentEmail}`);
-        }
-        
-        const studentData = studentUserSnap.data();
-        if (studentData.role !== 'student') {
-             throw new Error(`User ${newStudentEmail} is not a student.`);
-        }
-
-        // 3. Add student to the educator's student subcollection
-        const educatorStudentRef = doc(firestore, 'users', user.uid, 'students', studentId);
-        await setDoc(educatorStudentRef, {
-            uid: studentId,
-            email: studentData.email,
-            firstName: studentData.firstName,
-            lastName: studentData.lastName,
-            addedAt: serverTimestamp(),
-        });
-
-        toast({
-            title: 'Student Added!',
-            description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`
-        });
-        setNewStudentEmail('');
-
-    } catch (error: any) {
-        console.error('Error adding student:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Failed to Add Student',
-            description: error.message || 'An unknown error occurred.'
-        });
-    } finally {
-        setIsAddingStudent(false);
-    }
-  };
-
-  const handleRemoveStudent = async (studentId: string) => {
-    if (!user || !studentId) return;
-
-    try {
-      await deleteDoc(doc(firestore, 'users', user.uid, 'students', studentId));
-      toast({
-        title: 'Student Removed',
-        description: 'The student has been removed from your roster.',
-      });
-    } catch (error: any) {
-       console.error('Error removing student:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Failed to Remove Student',
-            description: error.message || 'An unknown error occurred.'
-        });
-    }
-  };
-  
   const handleConfirmAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assigningAssignment || studentsToAssign.length === 0 || !dueDate || !user) return;
@@ -552,55 +472,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 </CardFooter>
             </Card>
             </form>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-headline text-xl">My Students</CardTitle>
-                <CardDescription>Add and manage your student roster.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleAddStudent} className="flex gap-2">
-                  <Input 
-                    type="email"
-                    placeholder="student@example.com"
-                    value={newStudentEmail}
-                    onChange={(e) => setNewStudentEmail(e.target.value)}
-                    disabled={isAddingStudent}
-                    required
-                  />
-                  <Button type="submit" size="icon" disabled={isAddingStudent}>
-                    {isAddingStudent ? <Loader className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                    <span className="sr-only">Add Student</span>
-                  </Button>
-                </form>
-                <div className="mt-4 space-y-2">
-                  {studentsLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading students...</p>
-                  ) : students && students.length > 0 ? (
-                    <ScrollArea className="h-40">
-                      {students.map((student: any) => (
-                        <div key={student.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                                <AvatarFallback>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-medium text-sm">{student.firstName} {student.lastName}</p>
-                                <p className="text-xs text-muted-foreground">{student.email}</p>
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemoveStudent(student.id)}>
-                            <Trash2 className="h-4 w-4 text-red-500/70" />
-                          </Button>
-                        </div>
-                      ))}
-                    </ScrollArea>
-                  ) : (
-                    <p className="text-sm text-center text-muted-foreground pt-4">No students added yet.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
             <Card>
                 <CardHeader>
