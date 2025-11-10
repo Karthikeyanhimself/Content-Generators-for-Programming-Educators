@@ -117,7 +117,7 @@ export default function DashboardLayout({
                       <SidebarGroupLabel>Submissions</SidebarGroupLabel>
                       <SidebarMenu>
                           {isLoadingSubmissions && !submissions ? (
-                              <p className="p-2 text-xs text-muted-foreground">Loading...</p>
+                              <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading...</p>
                           ) : submissions && submissions.length > 0 ? (
                             <ScrollArea className="h-64">
                               {submissions.map((sub: any) => (
@@ -159,7 +159,7 @@ export default function DashboardLayout({
                               ))}
                               </ScrollArea>
                           ) : (
-                               <div className="p-2 text-center text-xs text-muted-foreground">
+                               <div className="p-2 text-center text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
                                   No submissions yet.
                                </div>
                           )}
