@@ -1,0 +1,147 @@
+/**
+ * @fileOverview Firestore Security Rules for AlgoGenius platform.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user-related data,
+ * and public read access for system-generated scenarios. Write access is
+ * carefully controlled to ensure data integrity and prevent unauthorized
+ * modifications. Authorization is primarily achieved through path-based
+ * ownership, avoiding costly `get()` calls.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user account information. Document ID is the userId.
+ * - /users/{userId}/profile: Stores user profile details. Document ID is the userId.
+ * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
+ * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
+ * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
+ * - /scenarios/{scenarioId}/testCases/{testCaseId}: Stores test cases for a specific scenario.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own user and profile data.
+ * - Scenarios are publicly readable, but write access is restricted.
+ * - Assignments are owned by the student and must have correct studentId and educatorId
+ * - Listing all users or user profiles is disallowed for security reasons.
+ * - The rules do not enforce the precise shape of the data but focus on authorization.
+ *
+ * Denormalization for Authorization:
+ * - The 'Assignment' document contains both 'educatorId' and 'studentId' to enable
+ *   authorization checks without needing to fetch related user documents.
+ *   Assignments are stored under `/users/{userId}/assignments/{assignmentId}` to
+ *   simplify ownership checks based on the path.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user account documents. Users can only read/write their own document.
+     * @path /users/{userId}
+     * @allow (create) - User with UID 'user_abc' can create their own document at /users/user_abc if request.auth.uid == user_abc.
+     * @allow (get) - User with UID 'user_abc' can get their own document at /users/user_abc.
+     * @allow (update) - User with UID 'user_abc' can update their own document at /users/user_abc.
+     * @allow (delete) - User with UID 'user_abc' can delete their own document at /users/user_abc.
+     * @deny (create) - User with UID 'user_xyz' cannot create a document at /users/user_abc.
+     * @deny (get) - User with UID 'user_xyz' cannot get the document at /users/user_abc.
+     * @principle Enforces document ownership for user accounts.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // Prevent listing all users.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && resource.data.id == userId;
+      allow delete: if isOwner(userId) && resource.data.id == userId;
+    }
+
+    /**
+     * @description Controls access to user profile documents. Users can only read/write their own profile.
+     * @path /users/{userId}/profile
+     * @allow (create) - User with UID 'user_abc' can create their profile at /users/user_abc/profile if request.auth.uid == user_abc.
+     * @allow (get) - User with UID 'user_abc' can get their profile at /users/user_abc/profile.
+     * @allow (update) - User with UID 'user_abc' can update their profile at /users/user_abc/profile.
+     * @allow (delete) - User with UID 'user_abc' can delete their profile at /users/user_abc/profile.
+     * @deny (create) - User with UID 'user_xyz' cannot create a profile at /users/user_abc/profile.
+     * @deny (get) - User with UID 'user_xyz' cannot get the profile at /users/user_abc/profile.
+     * @principle Enforces document ownership for user profiles.
+     */
+    match /users/{userId}/profile {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // Prevent listing all user profiles.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && resource.data.id == userId;
+      allow delete: if isOwner(userId) && resource.data.id == userId;
+    }
+
+    /**
+     * @description Controls access to scenario documents. Scenarios are publicly readable, but write access is denied.
+     * @path /scenarios/{scenarioId}
+     * @allow (get) - Any user can get any scenario.
+     * @allow (list) - Any user can list scenarios.
+     * @deny (create) - No user can create a scenario through the client.
+     * @principle Scenarios are read-only for all users.
+     */
+    match /scenarios/{scenarioId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to assignment documents. Assignments are owned by the student.
+     * @path /users/{userId}/assignments/{assignmentId}
+     * @allow (create) - User with UID 'user_abc' can create an assignment at /users/user_abc/assignments/assignment_123 if request.auth.uid == user_abc and request.resource.data.studentId == user_abc.
+     * @allow (get) - User with UID 'user_abc' can get their assignment at /users/user_abc/assignments/assignment_123.
+     * @allow (update) - User with UID 'user_abc' can update their assignment at /users/user_abc/assignments/assignment_123.
+     * @allow (delete) - User with UID 'user_abc' can delete their assignment at /users/user_abc/assignments/assignment_123.
+     * @deny (create) - User with UID 'user_xyz' cannot create an assignment at /users/user_abc/assignments/assignment_123.
+     * @deny (get) - User with UID 'user_xyz' cannot get the assignment at /users/user_abc/assignments/assignment_123.
+     * @principle Enforces document ownership for assignments.
+     */
+    match /users/{userId}/assignments/{assignmentId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+       function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow update: if isExistingOwner(userId) && resource.data.studentId == userId;
+      allow delete: if isExistingOwner(userId) && resource.data.studentId == userId;
+    }
+
+    /**
+     * @description Controls access to hint documents. Hints are readable, but write access is denied.
+     * @path /scenarios/{scenarioId}/hints/{hintId}
+     * @allow (get) - Any user can get any hint.
+     * @allow (list) - Any user can list hints for a scenario.
+     * @deny (create) - No user can create a hint through the client.
+     * @principle Hints are read-only for all users.
+     */
+    match /scenarios/{scenarioId}/hints/{hintId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to test case documents. Test cases are readable, but write access is denied.
+     * @path /scenarios/{scenarioId}/testCases/{testCaseId}
+     * @allow (get) - Any user can get any test case.
+     * @allow (list) - Any user can list test cases for a scenario.
+     * @deny (create) - No user can create a test case through the client.
+     * @principle Test cases are read-only for all users.
+     */
+    match /scenarios/{scenarioId}/testCases/{testCaseId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+  }
+}
