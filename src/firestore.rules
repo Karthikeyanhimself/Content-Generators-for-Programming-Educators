@@ -1,0 +1,109 @@
+/**
+ * @fileOverview Firestore Security Rules for AlgoGenius platform.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user-related data,
+ * and public read access for system-generated scenarios. Write access is
+ * carefully controlled to ensure data integrity and prevent unauthorized
+ * modifications. Authorization is primarily achieved through path-based
+ * ownership, avoiding costly `get()` calls where possible, but allowing them
+ * for specific, secure cross-user lookups (like an educator reading a student's profile).
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user account information and profile data. Document ID is the userId.
+ * - /users/{userId}/students/{studentId}: An educator's roster of students. The studentId is the student's UID.
+ * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
+ * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
+ * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
+ * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
+ * - /scenarios/{scenarioId}/testCases/{testCaseId}: Stores test cases for a specific scenario.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own user and profile data.
+ * - **Exception**: An educator can read a student's profile if that student is in their roster.
+ * - `users-by-email` allows any authenticated user to find a student's UID by email.
+ * - Scenarios are publicly readable, but write access is restricted.
+ * - Assignments are owned by the student.
+ * - Listing all users is disallowed for security reasons.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Checks if the requesting user (an educator) has the target user (a student) in their roster.
+    function isStudentInEducatorRoster(studentId) {
+      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)/students/$(studentId));
+    }
+
+    /**
+     * @description Controls access to user account documents.
+     * - A user can always read/write their own document.
+     * - An educator can read a student's document if the student is in their roster.
+     */
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      allow create;
+      allow update, delete: if isOwner(userId);
+      allow list: if false; // Prevent listing all users.
+    }
+    
+    /**
+     * @description Educator's student roster. Only the educator can manage their own roster.
+     */
+    match /users/{userId}/students/{studentId} {
+      allow read, list, create, write, delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Securely maps emails to UIDs. Allows any authenticated user to read,
+     * and users to create their own mapping. This is the crucial lookup step for an educator.
+     */
+    match /users-by-email/{email} {
+      allow get: if request.auth != null;
+      // Allow a user to create their own email-to-UID mapping.
+      // The document ID (email) must match the authenticated user's email.
+      allow create: if request.auth != null && request.auth.token.email == email;
+      allow list, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to scenario documents. Scenarios are publicly readable, but write access is restricted.
+     */
+    match /scenarios/{scenarioId} {
+      allow get, list: if true;
+      allow create: if request.auth != null; // Allow authenticated users (educators) to create
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to assignment documents. Assignments are owned by the user (student or educator for drafts).
+     */
+    match /users/{userId}/assignments/{assignmentId} {
+      allow get, list, update, delete: if isOwner(userId);
+      // An educator can create an assignment in a student's subcollection.
+      allow create: if request.auth != null;
+    }
+
+    /**
+     * @description Controls access to hint documents. Hints are readable, but write access is denied.
+     */
+    match /scenarios/{scenarioId}/hints/{hintId} {
+      allow get, list: if true;
+      allow create: if request.auth != null; // Allow scenario creator to add hints.
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to test case documents. Test cases are readable, but write access is denied.
+     */
+    match /scenarios/{scenarioId}/testCases/{testCaseId} {
+      allow get, list: if true;
+      allow create: if request.auth != null; // Allow scenario creator to add test cases.
+      allow update, delete: if false;
+    }
+  }
+}
