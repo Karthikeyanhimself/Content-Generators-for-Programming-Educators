@@ -78,7 +78,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const dsaConcepts = {
@@ -351,35 +353,35 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     if (!newStudentEmail || !user) return;
     setIsAddingStudent(true);
   
+    const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
+  
     try {
-      const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
       const emailLookupSnap = await getDoc(emailLookupRef);
   
       if (!emailLookupSnap.exists()) {
         toast({
-            variant: 'destructive',
-            title: 'Student Not Found',
-            description: 'No student found with that email address. Please check the email and ask the student to sign up.',
+          variant: 'destructive',
+          title: 'Student Not Found',
+          description: 'No student account exists for this email address. Please ask them to sign up first.',
         });
         setIsAddingStudent(false);
         return;
       }
-      
-      const { uid: studentUid } = emailLookupSnap.data();
   
+      const { uid: studentUid } = emailLookupSnap.data();
       const studentUserRef = doc(firestore, 'users', studentUid);
       const studentUserSnap = await getDoc(studentUserRef);
   
       if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
         toast({
           variant: 'destructive',
-          title: 'Invalid User',
-          description: 'The user with this email is not a student.',
+          title: 'Not a Student Account',
+          description: 'The user with this email is not registered as a student.',
         });
         setIsAddingStudent(false);
         return;
       }
-      
+  
       const studentData = studentUserSnap.data();
       const rosterData = {
         uid: studentUid,
@@ -399,18 +401,22 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       setNewStudentEmail('');
   
     } catch (error: any) {
-      console.error('Error adding student:', error);
+      console.error('Error during handleAddStudent:', error);
+  
+      // This is the crucial part: check if it's a permission error
+      // and emit it for the global error handler to pick up.
       if (error.code === 'permission-denied') {
-        toast({
-          variant: 'destructive',
-          title: 'Permission Denied',
-          description: "You don't have permission to look up students. Please check Firestore rules.",
+        const contextualError = new FirestorePermissionError({
+          operation: 'get',
+          path: emailLookupRef.path,
         });
+        errorEmitter.emit('permission-error', contextualError);
       } else {
+        // Handle other errors, like network issues
         toast({
           variant: 'destructive',
           title: 'An Unexpected Error Occurred',
-          description: 'Could not add the student. Please try again later.',
+          description: error.message || 'Could not add the student. Please try again later.',
         });
       }
     } finally {
