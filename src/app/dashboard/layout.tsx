@@ -29,7 +29,9 @@ export default function DashboardLayout({
   }, [user, isUserLoading, router]);
 
   const handleLogout = () => {
-    auth.signOut();
+    if (auth) {
+      auth.signOut();
+    }
   };
 
   if (!isClient || isUserLoading || !user) {
@@ -75,7 +77,7 @@ export default function DashboardLayout({
             <SidebarFooter className="p-2">
                 <SidebarMenu>
                      <SidebarMenuItem>
-                        <div className='flex items-center gap-2 p-2'>
+                        <div className='flex items-center gap-3 p-2'>
                              <Avatar className="h-8 w-8">
                                 <AvatarImage
                                 src={user.photoURL ?? ''}
@@ -87,7 +89,7 @@ export default function DashboardLayout({
                             </Avatar>
                             <div className='flex flex-col overflow-hidden'>
                                 <p className="text-sm font-medium leading-none truncate">
-                                    {(user as any).firstName || user.displayName || user.email}
+                                    {(user as any).firstName || user.displayName || 'User'}
                                 </p>
                                 <p className="text-xs leading-none text-muted-foreground truncate">
                                     {user.email}
