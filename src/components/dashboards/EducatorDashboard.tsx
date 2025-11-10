@@ -30,7 +30,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -57,6 +57,10 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar } from '../ui/calendar';
+import { cn } from '@/lib/utils';
 
 export default function EducatorDashboard() {
   const { toast } = useToast();
@@ -72,6 +76,11 @@ export default function EducatorDashboard() {
     useState<SuggestSolutionApproachTipsOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
+  
+  const [assigningAssignmentId, setAssigningAssignmentId] = useState<string | null>(null);
+  const [studentEmail, setStudentEmail] = useState('');
+  const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
+
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
@@ -195,6 +204,23 @@ export default function EducatorDashboard() {
       setIsCreatingAssignment(false);
     }
   };
+  
+  const handleConfirmAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningAssignmentId || !studentEmail || !dueDate) return;
+
+    // TODO: Implement logic to find student by email and create assignment
+    console.log({
+        assigningAssignmentId,
+        studentEmail,
+        dueDate
+    });
+
+    toast({
+        title: 'Assignment Sent (Not Really!)',
+        description: "This part isn't wired up yet."
+    });
+  }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -299,17 +325,76 @@ export default function EducatorDashboard() {
                             <div className="h-12 w-full animate-pulse rounded-md bg-muted"></div>
                         </div>
                     ) : assignments && assignments.length > 0 ? (
-                        <div className="space-y-3">
+                         <div className="space-y-3">
                             {assignments.map((assignment: any) => (
-                                <div key={assignment.id} className="rounded-lg border p-3">
-                                    <div className="flex items-center justify-between">
-                                        <p className="font-medium">Assignment Draft</p>
+                                <div key={assignment.id} className="rounded-lg border p-3 text-sm">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="font-medium">Assignment Draft</p>
+                                             <p className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+                                                <CalendarDays className="h-3 w-3" />
+                                                Created {assignment.createdAt ? format(assignment.createdAt.toDate(), 'PPP') : 'just now'}
+                                            </p>
+                                        </div>
                                         <Badge variant={assignment.status === 'draft' ? 'outline' : 'default'}>{assignment.status}</Badge>
                                     </div>
-                                    <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                                        <CalendarDays className="h-4 w-4" />
-                                        Created {assignment.createdAt ? format(assignment.createdAt.toDate(), 'PPP') : 'just now'}
-                                    </p>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                             <Button variant="outline" size="sm" className="w-full mt-3">
+                                                <PlusCircle className="mr-2 h-4 w-4" />
+                                                Assign to Student
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-md">
+                                            <DialogHeader>
+                                                <DialogTitle>Assign Scenario</DialogTitle>
+                                                <DialogDescription>
+                                                    Enter the student's email and a due date to send the assignment.
+                                                </DialogDescription>
+                                            </DialogHeader>
+                                            <form onSubmit={handleConfirmAssignment} className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="student-email">Student Email</Label>
+                                                    <Input 
+                                                        id="student-email"
+                                                        type="email"
+                                                        placeholder="student@example.com"
+                                                        value={studentEmail}
+                                                        onChange={(e) => setStudentEmail(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Due Date</Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant={"outline"}
+                                                            className={cn(
+                                                                "w-full justify-start text-left font-normal",
+                                                                !dueDate && "text-muted-foreground"
+                                                            )}
+                                                            >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                                                        </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={dueDate}
+                                                                onSelect={setDueDate}
+                                                                initialFocus
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
+                                                <Button type="submit" className="w-full" disabled={true}>
+                                                    Confirm Assignment
+                                                </Button>
+                                            </form>
+                                        </DialogContent>
+                                    </Dialog>
                                 </div>
                             ))}
                         </div>
@@ -487,5 +572,3 @@ export default function EducatorDashboard() {
     </div>
   );
 }
-
-    
