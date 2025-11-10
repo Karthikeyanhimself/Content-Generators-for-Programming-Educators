@@ -195,48 +195,59 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
    // Effect to fetch all submissions from all students in the roster
   useEffect(() => {
-    if (!user || !firestore || !students) {
-      setIsLoadingSubmissions(false);
+    if (!user || !firestore || studentsLoading) {
       return;
-    };
+    }
 
     const fetchSubmissions = async () => {
       setIsLoadingSubmissions(true);
-      try {
-        if (students.length === 0) {
-          setSubmissions([]);
-          return;
-        }
+      if (!students || students.length === 0) {
+        setSubmissions([]);
+        setIsLoadingSubmissions(false);
+        return;
+      }
 
-        const studentIds = students.map((s: any) => s.uid);
-        const submissionsQuery = query(
-          collectionGroup(firestore, 'assignments'),
-          where('studentId', 'in', studentIds),
-          where('status', '==', 'completed'),
-          where('educatorId', '==', user.uid),
-          orderBy('submittedAt', 'desc')
+      try {
+        const allSubmissions: any[] = [];
+        // Create a map of student data for easy lookup
+        const studentDataMap = new Map(
+          students.map((s: any) => [s.uid, { ...s }])
         );
 
-        const querySnapshot = await getDocs(submissionsQuery);
-        const fetchedSubmissions: any[] = [];
-        const studentDataMap = new Map();
+        // Create an array of promises for all the queries
+        const submissionPromises = students.map((student: any) => {
+          const submissionsQuery = query(
+            collection(firestore, `users/${student.uid}/assignments`),
+            where('status', '==', 'completed'),
+            where('educatorId', '==', user.uid)
+          );
+          return getDocs(submissionsQuery);
+        });
 
-        // Pre-fetch all student data to avoid multiple reads inside loop
-        for (const student of students) {
-          studentDataMap.set(student.uid, student);
-        }
+        // Wait for all queries to complete
+        const querySnapshots = await Promise.all(submissionPromises);
 
-        querySnapshot.forEach(doc => {
-          const data = doc.data();
-          const studentInfo = studentDataMap.get(data.studentId);
-          fetchedSubmissions.push({
-            id: doc.id,
-            ...data,
-            studentName: studentInfo ? `${studentInfo.firstName} ${studentInfo.lastName}` : 'Unknown Student',
+        // Process the results
+        querySnapshots.forEach((snapshot, index) => {
+          const studentInfo = students[index];
+          snapshot.forEach((doc) => {
+            allSubmissions.push({
+              id: doc.id,
+              ...doc.data(),
+              studentName: `${studentInfo.firstName} ${studentInfo.lastName}`,
+            });
           });
         });
 
-        setSubmissions(fetchedSubmissions);
+        // Sort the combined submissions by date
+        allSubmissions.sort((a, b) => {
+          const dateA = a.submittedAt?.toDate() || 0;
+          const dateB = b.submittedAt?.toDate() || 0;
+          return dateB - dateA;
+        });
+
+        setSubmissions(allSubmissions);
+
       } catch (error) {
         console.error("Error fetching submissions: ", error);
         toast({
@@ -250,7 +261,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     };
 
     fetchSubmissions();
-  }, [user, firestore, students, toast]);
+  }, [user, firestore, students, studentsLoading, toast]);
 
 
   const handleGenerate = async (e?: React.FormEvent) => {
@@ -1051,5 +1062,3 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
-
-    
