@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BrainCircuit, LayoutDashboard, LogOut, UserCircle } from 'lucide-react';
@@ -9,6 +9,8 @@ import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useDoc } from '@/firebase/firestore/use-doc';
 
 export default function DashboardLayout({
   children,
@@ -17,9 +19,17 @@ export default function DashboardLayout({
 }) {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
   const [isClient, setIsClient] = useState(false);
+
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, 'users', user.uid) : null),
+    [user, firestore]
+  );
+  
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<any>(userDocRef);
 
   useEffect(() => {
     setIsClient(true);
@@ -34,7 +44,9 @@ export default function DashboardLayout({
     }
   };
 
-  if (!isClient || isUserLoading || !user) {
+  const isLoading = !isClient || isUserLoading || isProfileLoading;
+
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex items-center gap-3 text-lg text-muted-foreground">
@@ -43,6 +55,12 @@ export default function DashboardLayout({
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    // This case is handled by the useEffect redirect, but it's good practice
+    // to have a guard here.
+    return null;
   }
 
   return (
@@ -81,15 +99,15 @@ export default function DashboardLayout({
                              <Avatar className="h-8 w-8">
                                 <AvatarImage
                                 src={user.photoURL ?? ''}
-                                alt={user.displayName ?? user.email ?? ''}
+                                alt={userProfile?.firstName ?? user.email ?? ''}
                                 />
                                 <AvatarFallback>
-                                {user.email?.charAt(0).toUpperCase()}
+                                {userProfile?.firstName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
                             <div className='flex flex-col overflow-hidden'>
                                 <p className="text-sm font-medium leading-none truncate">
-                                    {(user as any).firstName || user.displayName || 'User'}
+                                    {userProfile?.firstName || 'User'}
                                 </p>
                                 <p className="text-xs leading-none text-muted-foreground truncate">
                                     {user.email}
