@@ -202,6 +202,19 @@
         "input",
         "output"
       ]
+    },
+    "UserEmail": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserEmail",
+      "type": "object",
+      "description": "A mapping from a user's email to their UID.",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID."
+        }
+      },
+      "required": ["uid"]
     }
   },
   "auth": {
@@ -226,6 +239,20 @@
               "description": "The unique identifier of the user."
             }
           ]
+        }
+      },
+      {
+        "path": "/users-by-email/{email}",
+        "definition": {
+            "entityName": "UserEmail",
+            "schema": { "$ref": "#/backend/entities/UserEmail" },
+            "description": "Maps user emails to UIDs to allow educators to find students by email address without needing broad query permissions. The document ID is the user's email.",
+            "params": [
+                {
+                    "name": "email",
+                    "description": "The user's email address."
+                }
+            ]
         }
       },
       {
@@ -255,7 +282,7 @@
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user (student)."
+              "description": "The unique identifier of the user (student or educator for drafts)."
             },
             {
               "name": "assignmentId",

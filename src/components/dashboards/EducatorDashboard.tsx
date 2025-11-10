@@ -30,7 +30,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -54,13 +54,69 @@ import {
   serverTimestamp,
   query,
   where,
-  orderBy
+  orderBy,
+  getDoc,
+  doc
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
+import { Textarea } from '../ui/textarea';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '../ui/command';
+import { ScrollArea } from '../ui/scroll-area';
+
+const dsaConcepts = {
+  "Common Patterns": [
+    "Sliding Window",
+    "Two Pointers",
+    "Fast & Slow Pointers",
+    "Merge Intervals",
+    "Cyclic Sort",
+    "In-place Reversal of a LinkedList",
+    "Tree BFS",
+    "Tree DFS",
+    "Two Heaps",
+    "Subsets",
+    "Modified Binary Search",
+    "Top 'K' Elements",
+    "K-way Merge",
+    "Topological Sort",
+  ],
+  "Data Structures": [
+    "Array",
+    "String",
+    "Linked List",
+    "Stack",
+    "Queue",
+    "Hash Table",
+    "Hash Set",
+    "Hash Map",
+    "Heap (Priority Queue)",
+    "Trie",
+    "Binary Tree",
+    "Binary Search Tree",
+    "N-ary Tree",
+    "Graph",
+    "Matrix",
+  ],
+  "Algorithms": [
+    "Sorting",
+    "Binary Search",
+    "Depth-First Search (DFS)",
+    "Breadth-First Search (BFS)",
+    "Backtracking",
+    "Recursion",
+    "Dynamic Programming",
+    "Greedy Algorithms",
+    "Topological Sort",
+    "Union Find",
+    "Bit Manipulation",
+    "Kadane's Algorithm",
+  ],
+};
+
 
 export default function EducatorDashboard() {
   const { toast } = useToast();
@@ -68,8 +124,9 @@ export default function EducatorDashboard() {
   const { user } = useUser();
 
   const [theme, setTheme] = useState('Adventure/Fantasy');
-  const [dsaConcept, setDsaConcept] = useState('Arrays');
+  const [selectedConcepts, setSelectedConcepts] = useState<string[]>(['Array']);
   const [difficulty, setDifficulty] = useState(1);
+  const [userPrompt, setUserPrompt] = useState('');
   const [generatedData, setGeneratedData] =
     useState<GenerateThemedScenarioOutput | null>(null);
   const [solutionTips, setSolutionTips] =
@@ -77,9 +134,11 @@ export default function EducatorDashboard() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   
-  const [assigningAssignmentId, setAssigningAssignmentId] = useState<string | null>(null);
+  const [assigningAssignment, setAssigningAssignment] = useState<any | null>(null);
   const [studentEmail, setStudentEmail] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [open, setOpen] = useState(false);
 
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
@@ -98,14 +157,22 @@ export default function EducatorDashboard() {
 
   const handleGenerate = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (selectedConcepts.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Please select at least one DSA concept.',
+      });
+      return;
+    }
     setIsGenerating(true);
     setGeneratedData(null);
     setSolutionTips(null);
     try {
       const input: GenerateThemedScenarioInput = {
         theme: theme as any,
-        dsaConcept,
+        dsaConcepts: selectedConcepts,
         difficulty: difficultyLabels[difficulty] as any,
+        userPrompt: userPrompt
       };
       const result = await generateThemedScenario(input);
       setGeneratedData(result);
@@ -139,7 +206,7 @@ export default function EducatorDashboard() {
         theme: theme,
         content: generatedData.scenario,
         difficulty: difficultyLabels[difficulty],
-        dsaConcept: dsaConcept,
+        dsaConcept: generatedData.dsaConcept,
         createdAt: serverTimestamp(),
         createdBy: user.uid,
       });
@@ -179,6 +246,7 @@ export default function EducatorDashboard() {
       await addDoc(assignmentsCollection, {
           educatorId: user.uid,
           scenarioId: scenarioRef.id,
+          dsaConcept: generatedData.dsaConcept,
           // Placeholder values, to be updated when assigned to a student
           studentId: 'unassigned', 
           dueDate: new Date(new Date().setDate(new Date().getDate() + 7)), // Default due date: 1 week from now
@@ -207,25 +275,66 @@ export default function EducatorDashboard() {
   
   const handleConfirmAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assigningAssignmentId || !studentEmail || !dueDate) return;
+    if (!assigningAssignment || !studentEmail || !dueDate || !user) return;
+    setIsAssigning(true);
 
-    // TODO: Implement logic to find student by email and create assignment
-    console.log({
-        assigningAssignmentId,
-        studentEmail,
-        dueDate
-    });
+    try {
+        // 1. Find the student by email
+        const studentEmailRef = doc(firestore, 'users-by-email', studentEmail);
+        const studentEmailSnap = await getDoc(studentEmailRef);
 
-    toast({
-        title: 'Assignment Sent (Not Really!)',
-        description: "This part isn't wired up yet."
-    });
+        if (!studentEmailSnap.exists()) {
+            toast({
+                variant: 'destructive',
+                title: 'Student not found',
+                description: `No student found with the email: ${studentEmail}`
+            });
+            setIsAssigning(false);
+            return;
+        }
+
+        const studentId = studentEmailSnap.data().uid;
+
+        // 2. Create the assignment in the student's subcollection
+        const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
+        await addDoc(studentAssignmentsCollection, {
+            educatorId: user.uid,
+            scenarioId: assigningAssignment.scenarioId,
+            studentId: studentId,
+            dueDate: dueDate,
+            status: 'assigned',
+            createdAt: serverTimestamp(),
+            dsaConcept: assigningAssignment.dsaConcept,
+        });
+
+        toast({
+            title: 'Assignment Sent!',
+            description: `Successfully assigned to ${studentEmail}.`
+        });
+
+        // Close dialog and reset state
+        setAssigningAssignment(null);
+        setStudentEmail('');
+        setDueDate(new Date());
+
+    } catch (error: any) {
+        console.error('Error assigning assignment:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Assignment Failed',
+            description: error.message || 'Could not assign the scenario. Please check permissions and try again.'
+        });
+    } finally {
+        setIsAssigning(false);
+    }
   }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied to clipboard!' });
   };
+
+  const allConcepts = Object.values(dsaConcepts).flat();
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
@@ -242,53 +351,106 @@ export default function EducatorDashboard() {
                 </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <Label htmlFor="theme">Theme</Label>
-                    <Select value={theme} onValueChange={setTheme}>
-                    <SelectTrigger id="theme">
-                        <SelectValue placeholder="Select a theme" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Adventure/Fantasy">
-                        Adventure/Fantasy
-                        </SelectItem>
-                        <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
-                        <SelectItem value="Business/Real-world">
-                        Business/Real-world
-                        </SelectItem>
-                        <SelectItem value="Gaming">Gaming</SelectItem>
-                        <SelectItem value="Mystery/Detective">
-                        Mystery/Detective
-                        </SelectItem>
-                    </SelectContent>
-                    </Select>
-                </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="theme">Theme</Label>
+                      <Select value={theme} onValueChange={setTheme}>
+                      <SelectTrigger id="theme">
+                          <SelectValue placeholder="Select a theme" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="Adventure/Fantasy">
+                          Adventure/Fantasy
+                          </SelectItem>
+                          <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
+                          <SelectItem value="Business/Real-world">
+                          Business/Real-world
+                          </SelectItem>
+                          <SelectItem value="Gaming">Gaming</SelectItem>
+                          <SelectItem value="Mystery/Detective">
+                          Mystery/Detective
+                          </SelectItem>
+                      </SelectContent>
+                      </Select>
+                  </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="dsa-concept">DSA Concept</Label>
-                    <Input
-                    id="dsa-concept"
-                    placeholder="e.g., Arrays, Trees, Graphs"
-                    value={dsaConcept}
-                    onChange={(e) => setDsaConcept(e.target.value)}
-                    />
-                </div>
+                  <div className="space-y-2">
+                    <Label>DSA Concept(s)</Label>
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={open}
+                                className="w-full justify-between h-auto"
+                            >
+                                <div className="flex gap-1 flex-wrap">
+                                    {selectedConcepts.length > 0 ? selectedConcepts.map((concept) => (
+                                        <Badge variant="secondary" key={concept}>{concept}</Badge>
+                                    )) : "Select concepts..."}
+                                </div>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                <CommandInput placeholder="Search concepts..." />
+                                <CommandEmpty>No concept found.</CommandEmpty>
+                                <ScrollArea className="h-72">
+                                <CommandGroup>
+                                    {allConcepts.map((concept) => (
+                                        <CommandItem
+                                            key={concept}
+                                            value={concept}
+                                            onSelect={(currentValue) => {
+                                                setSelectedConcepts(prev => 
+                                                    prev.includes(concept)
+                                                    ? prev.filter(item => item !== concept)
+                                                    : [...prev, concept]
+                                                )
+                                            }}
+                                        >
+                                            <Check
+                                                className={cn(
+                                                    "mr-2 h-4 w-4",
+                                                    selectedConcepts.includes(concept) ? "opacity-100" : "opacity-0"
+                                                )}
+                                            />
+                                            {concept}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                                </ScrollArea>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                  </div>
 
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                    <Label>Difficulty</Label>
-                    <span className="text-sm font-medium text-muted-foreground">
-                        {difficultyLabels[difficulty]}
-                    </span>
-                    </div>
-                    <Slider
-                    min={0}
-                    max={2}
-                    step={1}
-                    defaultValue={[difficulty]}
-                    onValueChange={(value) => setDifficulty(value[0])}
+                  <div className="space-y-2">
+                    <Label htmlFor="user-prompt">Scenario Keywords (Optional)</Label>
+                    <Textarea 
+                      id="user-prompt"
+                      placeholder="e.g., A mystery on a space station..."
+                      value={userPrompt}
+                      onChange={(e) => setUserPrompt(e.target.value)}
+                      rows={2}
                     />
-                </div>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                      <Label>Difficulty</Label>
+                      <span className="text-sm font-medium text-muted-foreground">
+                          {difficultyLabels[difficulty]}
+                      </span>
+                      </div>
+                      <Slider
+                      min={0}
+                      max={2}
+                      step={1}
+                      defaultValue={[difficulty]}
+                      onValueChange={(value) => setDifficulty(value[0])}
+                      />
+                  </div>
                 </CardContent>
                 <CardFooter>
                 <Button
@@ -330,7 +492,7 @@ export default function EducatorDashboard() {
                                 <div key={assignment.id} className="rounded-lg border p-3 text-sm">
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <p className="font-medium">Assignment Draft</p>
+                                            <p className="font-medium">{assignment.dsaConcept || 'Assignment Draft'}</p>
                                              <p className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
                                                 <CalendarDays className="h-3 w-3" />
                                                 Created {assignment.createdAt ? format(assignment.createdAt.toDate(), 'PPP') : 'just now'}
@@ -338,9 +500,9 @@ export default function EducatorDashboard() {
                                         </div>
                                         <Badge variant={assignment.status === 'draft' ? 'outline' : 'default'}>{assignment.status}</Badge>
                                     </div>
-                                    <Dialog>
+                                    <Dialog onOpenChange={(open) => !open && setAssigningAssignment(null)}>
                                         <DialogTrigger asChild>
-                                             <Button variant="outline" size="sm" className="w-full mt-3">
+                                             <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setAssigningAssignment(assignment)}>
                                                 <PlusCircle className="mr-2 h-4 w-4" />
                                                 Assign to Student
                                             </Button>
@@ -389,8 +551,8 @@ export default function EducatorDashboard() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <Button type="submit" className="w-full" disabled={true}>
-                                                    Confirm Assignment
+                                                <Button type="submit" className="w-full" disabled={isAssigning}>
+                                                    {isAssigning ? 'Assigning...' : 'Confirm Assignment'}
                                                 </Button>
                                             </form>
                                         </DialogContent>
@@ -452,9 +614,17 @@ export default function EducatorDashboard() {
                 }}
               />
             ) : (
-              <p className="text-center text-muted-foreground pt-16">
-                Your generated scenario will appear here.
-              </p>
+              <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
+                    <div className="bg-primary/10 p-4 rounded-full">
+                        <Sparkles className="h-8 w-8 text-primary"/>
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground">
+                        Your AI-Generated Scenario Awaits
+                    </h3>
+                    <p className="text-muted-foreground text-base max-w-md">
+                       Use the controls on the left to select a theme, concept, and difficulty, then click "Generate Scenario" to begin.
+                    </p>
+                </div>
             )}
           </CardContent>
           {(generatedData || solutionTips) && (

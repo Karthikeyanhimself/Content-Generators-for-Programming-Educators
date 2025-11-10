@@ -53,6 +53,7 @@ export default function SignupPage() {
       const lastName = lastNameParts.join(' ');
 
       const userRef = doc(firestore, 'users', user.uid);
+      const emailRef = doc(firestore, 'users-by-email', user.email!);
       
       let profileData: any = {
         id: user.uid,
@@ -79,6 +80,8 @@ export default function SignupPage() {
       }
 
       setDocumentNonBlocking(userRef, profileData, { merge: true });
+      // Create the email lookup document
+      setDocumentNonBlocking(emailRef, { uid: user.uid }, {});
       
       // Redirect to dashboard after setting document.
       // Non-blocking nature means we don't wait for Firestore write to complete.
@@ -98,6 +101,7 @@ export default function SignupPage() {
       // On success, the useEffect will handle the rest.
     } catch (error) {
       // On failure, stop the submission process.
+      console.error(error);
       setIsSubmitting(false);
     }
   };

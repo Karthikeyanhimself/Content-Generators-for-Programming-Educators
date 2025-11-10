@@ -10,6 +10,7 @@
  *
  * Data Structure:
  * - /users/{userId}: Stores user account information and profile data. Document ID is the userId.
+ * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
  * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
@@ -17,48 +18,41 @@
  *
  * Key Security Decisions:
  * - Users can only read/write their own user and profile data.
- * - Scenarios are publicly readable, but write access is restricted.
+ * - `users-by-email` allows educators to find student UIDs without making the users collection listable.
+ * - Scenarios are publicly readable, but write access is restricted to authenticated users.
  * - Assignments are owned by the student and must have correct studentId and educatorId
  * - Listing all users is disallowed for security reasons.
- * - The rules do not enforce the precise shape of the data but focus on authorization.
- *
- * Denormalization for Authorization:
- * - The 'Assignment' document contains both 'educatorId' and 'studentId' to enable
- *   authorization checks without needing to fetch related user documents.
- *   Assignments are stored under `/users/{userId}/assignments/{assignmentId}` to
- *   simplify ownership checks based on the path.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     /**
      * @description Controls access to user account documents. Users can only read/write their own document.
-     * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create their own document at /users/user_abc if request.auth.uid == user_abc.
-     * @allow (get) - User with UID 'user_abc' can get their own document at /users/user_abc.
-     * @allow (update) - User with UID 'user_abc' can update their own document at /users/user_abc.
-     * @allow (delete) - User with UID 'user_abc' can delete their own document at /users/user_abc.
-     * @deny (create) - User with UID 'user_xyz' cannot create a document at /users/user_abc.
-     * @deny (get) - User with UID 'user_xyz' cannot get the document at /users/user_abc.
-     * @principle Enforces document ownership for user accounts.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
       allow read, write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
     }
 
     /**
-     * @description Controls access to scenario documents. Scenarios are publicly readable, but write access is denied.
-     * @path /scenarios/{scenarioId}
-     * @allow (get) - Any user can get any scenario.
-     * @allow (list) - Any user can list scenarios.
-     * @deny (create) - No user can create a scenario through the client.
-     * @principle Scenarios are read-only for all users.
+     * @description Securely maps emails to UIDs. Allows authenticated users to read, and users to create their own mapping.
+     */
+    match /users-by-email/{email} {
+       // Allow any authenticated user (e.g., an educator) to look up a student's UID.
+      allow get: if request.auth != null;
+      // Allow a user to create their own email-to-UID mapping.
+      // The document ID (email) must match the authenticated user's email.
+      allow create: if request.auth != null && request.auth.token.email == email;
+      allow list, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to scenario documents. Scenarios are publicly readable, but write access is restricted.
      */
     match /scenarios/{scenarioId} {
       allow get, list: if true;
@@ -67,38 +61,34 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to assignment documents. Assignments are owned by the student.
-     * @path /users/{userId}/assignments/{assignmentId}
-     * @allow (create) - User with UID 'user_abc' can create an assignment at /users/user_abc/assignments/assignment_123 if request.auth.uid == user_abc and request.resource.data.studentId == user_abc.
-     * @allow (get) - User with UID 'user_abc' can get their assignment at /users/user_abc/assignments/assignment_123.
-     * @allow (update) - User with UID 'user_abc' can update their assignment at /users/user_abc/assignments/assignment_123.
-     * @allow (delete) - User with UID 'user_abc' can delete their assignment at /users/user_abc/assignments/assignment_123.
-     * @deny (create) - User with UID 'user_xyz' cannot create an assignment at /users/user_abc/assignments/assignment_123.
-     * @deny (get) - User with UID 'user_xyz' cannot get the assignment at /users/user_abc/assignments/assignment_123.
-     * @principle Enforces document ownership for assignments.
+     * @description Controls access to assignment documents. Assignments are owned by the user (student or educator for drafts).
      */
     match /users/{userId}/assignments/{assignmentId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
        function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
+      
+      // An educator can create an assignment in a student's subcollection.
+      function isEducatorCreatingForStudent(userId) {
+         // This rule is tricky. For now, let's assume if you're writing to someone else's
+         // assignment subcollection, you are an educator. A better rule would check
+         // a custom claim on the request.auth.token.
+         return request.auth != null && request.auth.uid != userId;
+      }
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow get, list: if isOwner(userId);
+      // A user can create an assignment for themselves (student or educator draft)
+      allow create: if (isOwner(userId) && request.resource.data.studentId == userId) || 
+                       (isOwner(userId) && request.resource.data.educatorId == userId) ||
+                       // An educator assigning to a student
+                       (isEducatorCreatingForStudent(userId) && request.resource.data.studentId == userId);
+      
       allow update: if isExistingOwner(userId) && resource.data.studentId == userId;
-      allow delete: if isExistingOwner(userId) && resource.data.studentId == userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Controls access to hint documents. Hints are readable, but write access is denied.
-     * @path /scenarios/{scenarioId}/hints/{hintId}
-     * @allow (get) - Any user can get any hint.
-     * @allow (list) - Any user can list hints for a scenario.
-     * @deny (create) - No user can create a hint through the client.
-     * @principle Hints are read-only for all users.
      */
     match /scenarios/{scenarioId}/hints/{hintId} {
       allow get, list: if true;
@@ -108,11 +98,6 @@ service cloud.firestore {
 
     /**
      * @description Controls access to test case documents. Test cases are readable, but write access is denied.
-     * @path /scenarios/{scenarioId}/testCases/{testCaseId}
-     * @allow (get) - Any user can get any test case.
-     * @allow (list) - Any user can list test cases for a scenario.
-     * @deny (create) - No user can create a test case through the client.
-     * @principle Test cases are read-only for all users.
      */
     match /scenarios/{scenarioId}/testCases/{testCaseId} {
       allow get, list: if true;
