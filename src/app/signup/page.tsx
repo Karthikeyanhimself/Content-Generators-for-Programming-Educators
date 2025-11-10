@@ -17,15 +17,26 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { doc, setDoc, Firestore } from 'firebase/firestore';
+import { doc, setDoc, Firestore, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-const initiateStudentSeed = async (firestore: Firestore) => {
+const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => {
     const students = [
         { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
         { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
     ];
+    
+    // Create a sample scenario for the assignments
+    const scenarioRef = await addDoc(collection(firestore, 'scenarios'), {
+        theme: "Business/Real-world",
+        content: "You are tasked with optimizing inventory management for a retail company. Given a list of product sales numbers, find the most frequently sold item. If there's a tie, return any of the top items.",
+        difficulty: "Easy",
+        dsaConcept: "Array",
+        createdAt: serverTimestamp(),
+        createdBy: educatorId,
+    });
+
 
     for (const student of students) {
         // Create user profile document for the sample student
@@ -39,12 +50,54 @@ const initiateStudentSeed = async (firestore: Firestore) => {
             academicLevel: 'University',
             learningGoals: 'Learn DSA for interviews',
             preferredProgrammingLanguages: ['Python', 'JavaScript'],
-            hasCompletedAssessment: true, // Assume they are existing students
+            hasCompletedAssessment: true,
         });
 
-        // Create the necessary email lookup document for the sample student
+        // Create the necessary email lookup document
         const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
         await setDoc(emailDocRef, { uid: student.uid });
+
+        // Add student to the new educator's roster
+        const rosterRef = doc(firestore, `users/${educatorId}/students/${student.uid}`);
+        await setDoc(rosterRef, {
+            uid: student.uid,
+            email: student.email,
+            firstName: student.firstName,
+            lastName: student.lastName,
+            addedAt: serverTimestamp()
+        });
+
+        // Create a completed assignment for the student
+        const assignmentRef = doc(firestore, `users/${student.uid}/assignments`);
+        const assignmentData = {
+            id: assignmentRef.id,
+            educatorId: educatorId,
+            scenarioId: scenarioRef.id,
+            studentId: student.uid,
+            dueDate: new Date(),
+            status: 'completed' as const,
+            createdAt: serverTimestamp(),
+            submittedAt: serverTimestamp(),
+            dsaConcept: "Array",
+            score: Math.floor(Math.random() * 30 + 70), // Random score between 70-100
+            solutionCode: "def find_top_item(sales):\n  # ... sample solution code ...",
+            feedback: "A good attempt. The solution is correct but could be optimized for very large datasets.",
+        };
+        await setDoc(assignmentRef, assignmentData);
+
+        // Create the denormalized submission record for the educator
+        const educatorSubmissionRef = collection(firestore, `educators/${educatorId}/submissions`);
+        await addDoc(educatorSubmissionRef, {
+            studentId: student.uid,
+            studentEmail: student.email,
+            studentName: `${student.firstName} ${student.lastName}`,
+            originalAssignmentId: assignmentRef.id,
+            dsaConcept: "Array",
+            score: assignmentData.score,
+            feedback: assignmentData.feedback,
+            solutionCode: assignmentData.solutionCode,
+            submittedAt: serverTimestamp(),
+        });
     }
 };
 
@@ -114,7 +167,7 @@ export default function SignupPage() {
           
           // For educator, seed sample students and wait for it to finish.
           if (role === 'educator') {
-            await initiateStudentSeed(firestore);
+            await initiateStudentSeed(firestore, user.uid);
           }
 
           // Redirect to dashboard after all data is saved.
@@ -248,7 +301,7 @@ export default function SignupPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="learningGoals">Learning Goals</Label>
-                        <Textarea id="learningGoals" placeholder="e.g., Prepare for interviews, master dynamic programming" value={learningGoals} onChange={(e) => setLearningGoals(e.target.value)} />
+                        <Textarea id="learningGoals" placeholder="e.g., Prepare for interviews, master dynamic programming" value={learningGoals} onChange={(e) => setLearningGoals(e.g.target.value)} />
                       </div>
                        <div className="space-y-2">
                         <Label htmlFor="languages">Preferred Languages (comma-separated)</Label>
