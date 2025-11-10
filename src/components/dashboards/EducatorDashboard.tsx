@@ -45,7 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import {
   addDoc,
   collection,
@@ -399,20 +399,20 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       setNewStudentEmail('');
   
     } catch (error: any) {
-        if (error.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: `users-by-email/${newStudentEmail}`,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-             console.error('An unexpected error occurred while adding student:', error);
-             toast({
-                variant: 'destructive',
-                title: 'An Unexpected Error Occurred',
-                description: 'Could not add the student. Please try again later.',
-             });
-        }
+      console.error('Error adding student:', error);
+      if (error.code === 'permission-denied') {
+        toast({
+          variant: 'destructive',
+          title: 'Permission Denied',
+          description: "You don't have permission to look up students. Please check Firestore rules.",
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'An Unexpected Error Occurred',
+          description: 'Could not add the student. Please try again later.',
+        });
+      }
     } finally {
       setIsAddingStudent(false);
     }
