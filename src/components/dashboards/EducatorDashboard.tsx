@@ -403,13 +403,11 @@ export default function EducatorDashboard() {
                                             onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                            }}
-                                            onSelect={(currentValue) => {
                                                 setSelectedConcepts(prev => 
                                                     prev.includes(concept)
                                                     ? prev.filter(item => item !== concept)
                                                     : [...prev, concept]
-                                                )
+                                                );
                                             }}
                                         >
                                             <Check
