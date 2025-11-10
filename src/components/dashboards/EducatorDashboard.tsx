@@ -45,7 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import {
   addDoc,
   collection,
@@ -354,7 +354,14 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     try {
       // 1. Look up student UID by email
       const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
-      const emailLookupSnap = await getDoc(emailLookupRef);
+      const emailLookupSnap = await getDoc(emailLookupRef).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: emailLookupRef.path,
+          operation: 'get'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw permissionError;
+      });
 
       if (!emailLookupSnap.exists()) {
         throw new Error("No student found with that email address.");
@@ -364,21 +371,37 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       // 2. Get student's profile data
       const studentUserRef = doc(firestore, 'users', studentUid);
-      const studentUserSnap = await getDoc(studentUserRef);
+      const studentUserSnap = await getDoc(studentUserRef).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: studentUserRef.path,
+          operation: 'get'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw permissionError;
+      });
 
       if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
         throw new Error("The user found is not a student.");
       }
       const studentData = studentUserSnap.data();
-
-      // 3. Add student to educator's roster
-      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, {
+      const rosterData = {
         uid: studentUid,
         email: studentData.email,
         firstName: studentData.firstName,
         lastName: studentData.lastName,
         addedAt: serverTimestamp()
+      };
+
+      // 3. Add student to educator's roster
+      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
+      await setDoc(rosterRef, rosterData).catch(serverError => {
+         const permissionError = new FirestorePermissionError({
+          path: rosterRef.path,
+          operation: 'create',
+          requestResourceData: rosterData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw permissionError;
       });
 
       toast({
@@ -388,12 +411,14 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       setNewStudentEmail('');
 
     } catch (error: any) {
-      console.error("Error adding student:", error);
-      toast({
-        variant: "destructive",
-        title: "Could not add student",
-        description: error.message || "An unexpected error occurred."
-      });
+      if (!(error instanceof FirestorePermissionError)) {
+          console.error("Error adding student:", error);
+          toast({
+              variant: "destructive",
+              title: "Could not add student",
+              description: error.message || "An unexpected error occurred."
+          });
+      }
     } finally {
       setIsAddingStudent(false);
     }
@@ -907,5 +932,3 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
-
-    
