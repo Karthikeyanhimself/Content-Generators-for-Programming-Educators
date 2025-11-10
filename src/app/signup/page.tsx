@@ -44,6 +44,32 @@ export default function SignupPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  
+  const seedSampleStudents = () => {
+    const students = [
+        { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
+        { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
+    ];
+
+    students.forEach(student => {
+        // Create user profile document
+        const userDocRef = doc(firestore, `users/${student.uid}`);
+        setDocumentNonBlocking(userDocRef, {
+            id: student.uid,
+            email: student.email,
+            role: 'student',
+            firstName: student.firstName,
+            lastName: student.lastName,
+            academicLevel: 'University',
+            learningGoals: 'Learn DSA',
+            preferredProgrammingLanguages: ['Python'],
+        }, { merge: true });
+
+        // Create email lookup document
+        const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
+        setDocumentNonBlocking(emailDocRef, { uid: student.uid }, {});
+    });
+  };
 
   useEffect(() => {
     // This effect runs when the user object is available after signup.
@@ -77,6 +103,8 @@ export default function SignupPage() {
           yearsOfExperience: parseInt(experience, 10) || 0,
           institution,
         };
+        // For developer convenience, seed sample students when an educator signs up
+        seedSampleStudents();
       }
 
       setDocumentNonBlocking(userRef, profileData, { merge: true });
