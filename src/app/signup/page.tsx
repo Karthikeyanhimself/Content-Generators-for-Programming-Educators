@@ -46,13 +46,14 @@ export default function SignupPage() {
   const router = useRouter();
   
   const seedSampleStudents = () => {
+    if (!firestore) return;
     const students = [
         { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
         { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
     ];
 
     students.forEach(student => {
-        // Create user profile document
+        // Create user profile document for the sample student
         const userDocRef = doc(firestore, `users/${student.uid}`);
         setDocumentNonBlocking(userDocRef, {
             id: student.uid,
@@ -61,11 +62,11 @@ export default function SignupPage() {
             firstName: student.firstName,
             lastName: student.lastName,
             academicLevel: 'University',
-            learningGoals: 'Learn DSA',
-            preferredProgrammingLanguages: ['Python'],
+            learningGoals: 'Learn DSA for interviews',
+            preferredProgrammingLanguages: ['Python', 'JavaScript'],
         }, { merge: true });
 
-        // Create email lookup document
+        // Create the necessary email lookup document for the sample student
         const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
         setDocumentNonBlocking(emailDocRef, { uid: student.uid }, {});
     });
