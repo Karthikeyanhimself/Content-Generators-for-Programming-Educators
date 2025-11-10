@@ -209,11 +209,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       try {
         const allSubmissions: any[] = [];
-        // Create a map of student data for easy lookup
-        const studentDataMap = new Map(
-          students.map((s: any) => [s.uid, { ...s }])
-        );
-
+        
         // Create an array of promises for all the queries
         const submissionPromises = students.map((student: any) => {
           const submissionsQuery = query(
@@ -490,7 +486,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     } catch (error: any) {
         console.error("Error adding student:", error);
          if (error.code === 'permission-denied') {
-             // This is a more robust way to emit the error for debugging
              errorEmitter.emit(
                 'permission-error',
                 new FirestorePermissionError({
@@ -1031,6 +1026,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                 <TableHead>Concept</TableHead>
                                 <TableHead>Score</TableHead>
                                 <TableHead>Submitted</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1040,6 +1036,36 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                         <TableCell>{sub.dsaConcept}</TableCell>
                                         <TableCell>{sub.score}%</TableCell>
                                         <TableCell>{sub.submittedAt ? format(sub.submittedAt.toDate(), 'P') : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="outline" size="sm">View Submission</Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent className="max-w-2xl">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                           Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : ''}
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <ScrollArea className="max-h-[50vh]">
+                                                        <div className="space-y-4 p-1">
+                                                            <div>
+                                                                <h4 className="font-semibold mb-2">Score: {sub.score}%</h4>
+                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{sub.feedback}</p>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-semibold mb-2">Submitted Code:</h4>
+                                                                <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{sub.solutionCode}</code></pre>
+                                                            </div>
+                                                        </div>
+                                                    </ScrollArea>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Close</AlertDialogCancel>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

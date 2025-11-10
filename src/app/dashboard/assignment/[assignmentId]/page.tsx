@@ -98,168 +98,186 @@ export default function AssignmentPage() {
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!solutionCode || !assignmentData || !scenarioData || !user || !assignmentDocRef) return;
+        if (!solutionCode || !assignmentData || !scenarioData || !user || !assignmentDocRef || !firestore) return;
 
         setIsSubmitting(true);
         toast({ title: "Submitting your solution...", description: "The AI is assessing your code. This may take a moment." });
 
-        // Step 1: Assess the current submission
-        const assessmentInput: AssessCodeInput = {
-            scenario: scenarioData.content,
-            dsaConcept: assignmentData.dsaConcept,
-            difficulty: scenarioData.difficulty,
-            studentCode: solutionCode,
-        };
-        const assessmentResult = await assessCodeSubmission(assessmentInput);
-
-        // Step 2: Generate a study plan based on the result
-        const studyPlanInput: GenerateStudyPlanInput = {
-            currentScore: assessmentResult.score,
-            incorrectConcepts: assessmentResult.isCorrect ? [] : [assignmentData.dsaConcept]
-        };
-        const studyPlanResult = await generateStudyPlan(studyPlanInput);
-        
-        setSubmissionResult({ assessment: assessmentResult, studyPlan: studyPlanResult });
-
-        // Step 3: Update the current assignment document with the results
-        const submissionData = {
-            solutionCode: solutionCode,
-            score: assessmentResult.score,
-            feedback: assessmentResult.feedback,
-            status: 'completed' as const,
-            submittedAt: serverTimestamp(),
-        };
-
-        updateDoc(assignmentDocRef, submissionData)
-          .catch(error => {
-              if (error.code === 'permission-denied') {
-                  errorEmitter.emit('permission-error', new FirestorePermissionError({
-                      path: assignmentDocRef.path,
-                      operation: 'update',
-                      requestResourceData: submissionData
-                  }));
-              } else {
-                  console.error("Error updating assignment:", error);
-                  toast({
-                      variant: 'destructive',
-                      title: "Submission Error",
-                      description: "There was a problem saving your results."
-                  });
-              }
-              setIsSubmitting(false);
-              // Stop execution if this fails
-              throw error;
-          });
-
-        // --- Autonomous Agent Logic ---
-        // The following logic will run optimistically. If any operation fails due to permissions,
-        // the specific error handler will catch and report it.
-
-        // Step 4: Fetch recent performance history
-        const historyQuery = query(
-            collection(firestore, 'users', user.uid, 'assignments'),
-            where('status', '==', 'completed'),
-            orderBy('submittedAt', 'desc'),
-            limit(5)
-        );
-        const historySnapshot = await getDocs(historyQuery);
-        const performanceHistory = historySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                dsaConcept: data.dsaConcept,
-                score: data.score,
-                difficulty: 'Medium' // Placeholder, this should be fetched from scenario
+        try {
+            // Step 1: Assess the current submission
+            const assessmentInput: AssessCodeInput = {
+                scenario: scenarioData.content,
+                dsaConcept: assignmentData.dsaConcept,
+                difficulty: scenarioData.difficulty,
+                studentCode: solutionCode,
             };
-        });
+            const assessmentResult = await assessCodeSubmission(assessmentInput);
 
-        // Step 5: Get current user profile to find previous goal
-        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-        const userProfile = userDoc.data();
+            // Step 2: Generate a study plan based on the result
+            const studyPlanInput: GenerateStudyPlanInput = {
+                currentScore: assessmentResult.score,
+                incorrectConcepts: assessmentResult.isCorrect ? [] : [assignmentData.dsaConcept]
+            };
+            const studyPlanResult = await generateStudyPlan(studyPlanInput);
+            
+            setSubmissionResult({ assessment: assessmentResult, studyPlan: studyPlanResult });
 
-        // Step 6: Call the AI agent to get the next goal and generate a new assignment
-        const agentInput: UpdateLearningGoalsInput = {
-            performanceHistory,
-            previousGoal: userProfile?.learningGoals,
-        };
-        const { goal, nextAssignment } = await updateLearningGoalsAndCreateAssignment(agentInput);
-        
-        // Step 7: Update the user's profile with the new goal
-        const userDocRefToUpdate = doc(firestore, 'users', user.uid);
-        const userProfileUpdate = { learningGoals: goal.nextGoal };
-        updateDoc(userDocRefToUpdate, userProfileUpdate)
-            .catch(error => {
-                if (error.code === 'permission-denied') {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: userDocRefToUpdate.path,
-                        operation: 'update',
-                        requestResourceData: userProfileUpdate
-                    }));
-                }
+            // Step 3: Update the current assignment document with the results
+            const submissionData = {
+                solutionCode: solutionCode,
+                score: assessmentResult.score,
+                feedback: assessmentResult.feedback,
+                status: 'completed' as const,
+                submittedAt: serverTimestamp(),
+            };
+
+            await updateDoc(assignmentDocRef, submissionData)
+              .catch(error => {
+                  if (error.code === 'permission-denied') {
+                      errorEmitter.emit('permission-error', new FirestorePermissionError({
+                          path: assignmentDocRef.path,
+                          operation: 'update',
+                          requestResourceData: submissionData
+                      }));
+                  }
+                  throw error; // Re-throw to be caught by the outer catch block
+              });
+
+            // --- Autonomous Agent Logic ---
+            // Step 4: Fetch recent performance history
+            const historyQuery = query(
+                collection(firestore, 'users', user.uid, 'assignments'),
+                where('status', '==', 'completed'),
+                orderBy('submittedAt', 'desc'),
+                limit(5)
+            );
+            const historySnapshot = await getDocs(historyQuery);
+            const performanceHistory = historySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    dsaConcept: data.dsaConcept,
+                    score: data.score,
+                    difficulty: 'Medium' // Placeholder, this should be fetched from scenario
+                };
             });
 
+            // Step 5: Get current user profile to find previous goal
+            const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+            const userProfile = userDoc.data();
 
-        // Step 8: Create the new scenario and assignment in Firestore
-        const newScenarioData = {
-            theme: 'Business/Real-world',
-            content: nextAssignment.scenario,
-            difficulty: goal.recommendedDifficulty,
-            dsaConcept: nextAssignment.dsaConcept,
-            createdAt: serverTimestamp(),
-            createdBy: 'SYSTEM',
-        };
-        const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), newScenarioData)
-            .catch(error => {
-                 if (error.code === 'permission-denied') {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: 'scenarios',
-                        operation: 'create',
-                        requestResourceData: newScenarioData
-                    }));
-                 }
-                 throw error; // Stop if we can't create scenario
+            // Step 6: Call the AI agent to get the next goal and generate a new assignment
+            const agentInput: UpdateLearningGoalsInput = {
+                performanceHistory,
+                previousGoal: userProfile?.learningGoals,
+            };
+            const { goal, nextAssignment } = await updateLearningGoalsAndCreateAssignment(agentInput);
+            
+            // Step 7: Update the user's profile with the new goal
+            const userDocRefToUpdate = doc(firestore, 'users', user.uid);
+            const userProfileUpdate = { learningGoals: goal.nextGoal };
+            await updateDoc(userDocRefToUpdate, userProfileUpdate)
+                .catch(error => {
+                    if (error.code === 'permission-denied') {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: userDocRefToUpdate.path,
+                            operation: 'update',
+                            requestResourceData: userProfileUpdate
+                        }));
+                    }
+                     throw error;
+                });
+
+            // Step 8: Create the new scenario and assignment in Firestore
+            const newScenarioData = {
+                theme: 'Business/Real-world',
+                content: nextAssignment.scenario,
+                difficulty: goal.recommendedDifficulty,
+                dsaConcept: nextAssignment.dsaConcept,
+                createdAt: serverTimestamp(),
+                createdBy: 'SYSTEM',
+            };
+            const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), newScenarioData)
+                .catch(error => {
+                     if (error.code === 'permission-denied') {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: 'scenarios',
+                            operation: 'create',
+                            requestResourceData: newScenarioData
+                        }));
+                     }
+                     throw error;
+                });
+
+            const newAssignmentData = {
+                id: doc(collection(firestore, 'a')).id,
+                educatorId: 'SYSTEM',
+                scenarioId: newScenarioRef.id,
+                studentId: user.uid,
+                dueDate: addDays(new Date(), 7),
+                status: 'assigned' as const,
+                createdAt: serverTimestamp(),
+                dsaConcept: nextAssignment.dsaConcept,
+                isAutonomouslyGenerated: true,
+            };
+            const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`), newAssignmentData.id);
+            await setDoc(newAssignmentRef, newAssignmentData)
+                .catch(error => {
+                    if (error.code === 'permission-denied') {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: newAssignmentRef.path,
+                            operation: 'create',
+                            requestResourceData: newAssignmentData
+                        }));
+                    }
+                    throw error;
+                });
+
+            // Create hints for the new scenario
+            const hintsCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'hints');
+            for (const [index, hintContent] of nextAssignment.hints.entries()) {
+                 addDoc(hintsCollection, { hintLevel: index + 1, content: hintContent }).catch(error => {
+                    if (error.code === 'permission-denied') {
+                         errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: `scenarios/${newScenarioRef.id}/hints`,
+                            operation: 'create',
+                         }));
+                    }
+                });
+            }
+
+            // Create test cases for the new scenario
+            const testCasesCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'testCases');
+            for (const testCase of nextAssignment.testCases) {
+                addDoc(testCasesCollection, testCase).catch(error => {
+                     if (error.code === 'permission-denied') {
+                         errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: `scenarios/${newScenarioRef.id}/testCases`,
+                            operation: 'create',
+                            requestResourceData: testCase
+                         }));
+                    }
+                });
+            }
+
+            toast({
+                title: `Assessment Complete! Score: ${assessmentResult.score}%`,
+                description: "Check the results and your new study plan.",
             });
 
-        const newAssignmentData = {
-            id: doc(collection(firestore, 'a')).id, // generate an id client-side
-            educatorId: 'SYSTEM',
-            scenarioId: newScenarioRef.id,
-            studentId: user.uid,
-            dueDate: addDays(new Date(), 7),
-            status: 'assigned' as const,
-            createdAt: serverTimestamp(),
-            dsaConcept: nextAssignment.dsaConcept,
-            isAutonomouslyGenerated: true,
-        };
-        const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`), newAssignmentData.id);
-        setDoc(newAssignmentRef, newAssignmentData)
-            .catch(error => {
-                if (error.code === 'permission-denied') {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: newAssignmentRef.path,
-                        operation: 'create',
-                        requestResourceData: newAssignmentData
-                    }));
-                }
-            });
-
-        // Create hints for the new scenario
-        const hintsCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'hints');
-        for (const [index, hintContent] of nextAssignment.hints.entries()) {
-            addDoc(hintsCollection, { hintLevel: index + 1, content: hintContent });
+        } catch (error) {
+            console.error("An error occurred during submission:", error);
+            // The specific permission errors are already emitted.
+            // This catch block handles other unexpected errors.
+            if (!(error instanceof FirestorePermissionError) && (error as any)?.code !== 'permission-denied') {
+                toast({
+                    variant: 'destructive',
+                    title: "An Unexpected Error Occurred",
+                    description: "There was a problem submitting your assignment. Please try again later."
+                });
+            }
+        } finally {
+            setIsSubmitting(false);
         }
-
-        // Create test cases for the new scenario
-        const testCasesCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'testCases');
-        for (const testCase of nextAssignment.testCases) {
-            addDoc(testCasesCollection, testCase);
-        }
-
-        toast({
-            title: `Assessment Complete! Score: ${assessmentResult.score}%`,
-            description: "Check the results and your new study plan.",
-        });
-
-        setIsSubmitting(false);
     };
     
     const handleCloseDialog = () => {
@@ -465,6 +483,3 @@ export default function AssignmentPage() {
         </div>
     );
 }
-
-
-    
