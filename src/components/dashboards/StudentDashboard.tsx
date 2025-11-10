@@ -38,7 +38,7 @@ type Answer = {
 
 type ViewMode = 'loading' | 'assessment' | 'quiz' | 'results' | 'dashboard';
 
-export default function StudentDashboard() {
+export default function StudentDashboard({ userProfile }: { userProfile: any }) {
   const [viewMode, setViewMode] = useState<ViewMode>('loading');
   const [quizData, setQuizData] = useState<GenerateQuizOutput | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -65,24 +65,29 @@ export default function StudentDashboard() {
 
 
   useEffect(() => {
-    async function fetchQuiz() {
-      if (quizData) {
-        setViewMode('assessment');
-        return;
-      };
-      try {
-        const data = await generateQuizQuestions();
-        setQuizData(data);
-        setViewMode('assessment');
-      } catch (error) {
-        console.error('Failed to fetch quiz questions:', error);
-        // TODO: Set an error state
-      }
-    }
-    // For now, we assume every student takes the assessment once per session.
     // A real app would check if the assessment has been taken before.
-    fetchQuiz();
-  }, []);
+    // For this demo, we can check a flag on the user profile.
+    if (userProfile && userProfile.hasCompletedAssessment) {
+        setViewMode('dashboard');
+        // Optionally, fetch their existing study plan if it's stored
+    } else {
+       async function fetchQuiz() {
+            if (quizData) {
+                setViewMode('assessment');
+                return;
+            };
+            try {
+                const data = await generateQuizQuestions();
+                setQuizData(data);
+                setViewMode('assessment');
+            } catch (error) {
+                console.error('Failed to fetch quiz questions:', error);
+                // TODO: Set an error state
+            }
+        }
+        fetchQuiz();
+    }
+  }, [userProfile, quizData]);
 
   const handleStartQuiz = () => {
     setViewMode('quiz');
@@ -154,10 +159,10 @@ export default function StudentDashboard() {
       <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <BrainCircuit className="h-12 w-12 animate-pulse text-primary" />
         <h3 className="text-xl font-semibold text-foreground">
-          Preparing Your Knowledge Assessment
+          Preparing Your Dashboard
         </h3>
         <p className="text-muted-foreground">
-          Please wait while we generate your personalized quiz...
+          Please wait while we check for your initial assessment...
         </p>
       </div>
     );
@@ -393,5 +398,3 @@ export default function StudentDashboard() {
 
   return null;
 }
-
-    

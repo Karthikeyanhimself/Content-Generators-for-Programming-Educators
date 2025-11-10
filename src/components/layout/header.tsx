@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BrainCircuit, LogOut } from 'lucide-react';
+import { BrainCircuit, LogOut, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, useUser } from '@/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -13,17 +13,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import { usePathname } from 'next/navigation';
 
 export function Header() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const pathname = usePathname();
 
   const handleLogout = () => {
     auth.signOut();
   };
+  
+  const isDashboard = pathname.startsWith('/dashboard');
 
   return (
-    <header className="bg-background/80 fixed top-0 z-50 w-full border-b backdrop-blur-sm">
+    <header className="bg-background/80 fixed top-0 z-40 w-full border-b backdrop-blur-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
           <BrainCircuit className="h-6 w-6 text-primary" />
@@ -51,7 +55,7 @@ export function Header() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {user.displayName}
+                      {(user as any).firstName || user.displayName}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user.email}
@@ -62,6 +66,10 @@ export function Header() {
                 <DropdownMenuItem onClick={() => (window.location.href = '/dashboard')}>
                   Dashboard
                 </DropdownMenuItem>
+                 <DropdownMenuItem onClick={() => (window.location.href = '/dashboard/profile')}>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
@@ -71,12 +79,16 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" asChild>
-                <Link href="/login">Log In</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/signup">Sign Up</Link>
-              </Button>
+             {!isDashboard && 
+                <>
+                    <Button variant="ghost" asChild>
+                        <Link href="/login">Log In</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/signup">Sign Up</Link>
+                    </Button>
+                </>
+             }
             </>
           )}
         </div>

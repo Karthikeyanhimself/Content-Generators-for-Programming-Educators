@@ -9,6 +9,7 @@ import { useDoc } from '@/firebase/firestore/use-doc';
 import StudentDashboard from '@/components/dashboards/StudentDashboard';
 import EducatorDashboard from '@/components/dashboards/EducatorDashboard';
 import { BrainCircuit } from 'lucide-react';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface UserProfile {
   role: 'student' | 'educator';
@@ -48,11 +49,19 @@ export default function DashboardPage() {
   }
   
   const userRole = userData?.role;
+  const userName = userData ? `${(userData as any).firstName}` : 'User';
 
   return (
-    <div className="container mx-auto px-4 py-8 pt-24">
-      {userRole === 'student' && <StudentDashboard />}
-      {userRole === 'educator' && <EducatorDashboard />}
+    <>
+      <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold font-headline">Welcome back, {userName}!</h1>
+            <p className="text-muted-foreground">Here's your dashboard overview.</p>
+          </div>
+          <SidebarTrigger className="md:hidden"/>
+      </div>
+      {userRole === 'student' && <StudentDashboard userProfile={userData} />}
+      {userRole === 'educator' && <EducatorDashboard userProfile={userData} />}
       {!userRole && (
         <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
           <h2 className="text-2xl font-bold">Could not determine user role.</h2>
@@ -61,6 +70,6 @@ export default function DashboardPage() {
           </p>
         </div>
       )}
-    </div>
+    </>
   );
 }

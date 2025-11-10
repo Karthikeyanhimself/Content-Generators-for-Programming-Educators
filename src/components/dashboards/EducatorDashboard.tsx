@@ -121,7 +121,7 @@ const dsaConcepts = {
 };
 
 
-export default function EducatorDashboard() {
+export default function EducatorDashboard({ userProfile }: { userProfile: any}) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
@@ -864,5 +864,3 @@ export default function EducatorDashboard() {
     </div>
   );
 }
-
-    
