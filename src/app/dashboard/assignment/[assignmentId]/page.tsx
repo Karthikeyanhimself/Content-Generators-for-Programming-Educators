@@ -299,15 +299,17 @@ export default function AssignmentPage() {
                             <AlertDescription className="space-y-4">
                                {isCompleted ? (
                                 <>
-                                   <p>You have already completed this assignment and received a score of <strong>{assignmentData.score}%</strong>.</p>
+                                   <p>You have already completed this assignment. {assignmentData.score !== undefined ? `You received a score of <strong>${assignmentData.score}%</strong>.` : 'Your score is pending publication.'}</p>
                                     <div>
                                         <h4 className="font-semibold mb-2">Your Submitted Code:</h4>
                                         <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignmentData.solutionCode}</code></pre>
                                     </div>
-                                    <div>
-                                        <h4 className="font-semibold mb-2">AI Feedback:</h4>
-                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignmentData.feedback}</p>
-                                    </div>
+                                    {assignmentData.feedback && (
+                                        <div>
+                                            <h4 className="font-semibold mb-2">AI Feedback:</h4>
+                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignmentData.feedback}</p>
+                                        </div>
+                                    )}
                                 </>
                                ) : (
                                 <p>Your submission is awaiting review from your educator. Your score and feedback will appear here once published.</p>
@@ -350,5 +352,3 @@ export default function AssignmentPage() {
         </div>
     );
 }
-
-    

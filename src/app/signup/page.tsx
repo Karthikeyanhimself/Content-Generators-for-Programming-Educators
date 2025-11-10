@@ -67,36 +67,36 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
             addedAt: serverTimestamp()
         });
 
-        // Create a completed assignment for the student
+        // Create a submitted assignment for the student (NO SCORE/FEEDBACK HERE)
         const assignmentRef = doc(firestore, `users/${student.uid}/assignments`);
         const assignmentData = {
-            id: assignmentRef.id,
             educatorId: educatorId,
             scenarioId: scenarioRef.id,
             studentId: student.uid,
             dueDate: new Date(),
-            status: 'completed' as const,
+            status: 'submitted' as const, // The student has submitted, but it's not "completed" yet
             createdAt: serverTimestamp(),
             submittedAt: serverTimestamp(),
             dsaConcept: "Array",
-            score: Math.floor(Math.random() * 30 + 70), // Random score between 70-100
-            solutionCode: "def find_top_item(sales):\n  # ... sample solution code ...",
-            feedback: "A good attempt. The solution is correct but could be optimized for very large datasets.",
+            solutionCode: "def find_top_item(sales):\n  counts = {}\n  for item in sales:\n    counts[item] = counts.get(item, 0) + 1\n  return max(counts, key=counts.get)",
         };
-        await setDoc(assignmentRef, assignmentData);
+        await setDoc(assignmentRef, { id: assignmentRef.id, ...assignmentData });
 
-        // Create the denormalized submission record for the educator
+
+        // Create the denormalized submission record for the educator with AI assessment
         const educatorSubmissionRef = collection(firestore, `educators/${educatorId}/submissions`);
+        const score = Math.floor(Math.random() * 30 + 70); // Random score between 70-100
         await addDoc(educatorSubmissionRef, {
             studentId: student.uid,
             studentEmail: student.email,
             studentName: `${student.firstName} ${student.lastName}`,
             originalAssignmentId: assignmentRef.id,
             dsaConcept: "Array",
-            score: assignmentData.score,
-            feedback: assignmentData.feedback,
+            score: score,
+            feedback: "A good attempt. The solution is correct but could be optimized for very large datasets using a different data structure.",
             solutionCode: assignmentData.solutionCode,
             submittedAt: serverTimestamp(),
+            isPublished: false, // This is a new submission for the educator to review
         });
     }
 };

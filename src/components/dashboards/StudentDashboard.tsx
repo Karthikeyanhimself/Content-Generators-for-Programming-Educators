@@ -393,7 +393,11 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                         {assignment.status === 'completed' && (
                                              <div className="flex items-center justify-between text-sm font-medium pt-2">
                                                 <span className="text-muted-foreground">Score</span>
-                                                <span className={assignment.score > 75 ? "text-green-500" : "text-amber-500"}>{assignment.score}%</span>
+                                                {assignment.score !== undefined ? (
+                                                     <span className={assignment.score > 75 ? "text-green-500" : "text-amber-500"}>{assignment.score}%</span>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">Awaiting publication</span>
+                                                )}
                                             </div>
                                         )}
                                     </CardContent>
@@ -419,8 +423,8 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                                     <ScrollArea className="max-h-[50vh]">
                                                         <div className="space-y-4 p-1">
                                                             <div>
-                                                                <h4 className="font-semibold mb-2">Your Score: {assignment.score}%</h4>
-                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignment.feedback}</p>
+                                                                <h4 className="font-semibold mb-2">Your Score: {assignment.score !== undefined ? `${assignment.score}%` : 'Not yet published'}</h4>
+                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignment.feedback || "Your feedback will appear here once published by your educator."}</p>
                                                             </div>
                                                             <div>
                                                                 <h4 className="font-semibold mb-2">Your Code:</h4>
@@ -457,5 +461,3 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
-
-    
