@@ -93,7 +93,13 @@ export default function SignupPage() {
       return;
     }
     setIsSubmitting(true);
-    initiateEmailSignUp(auth, email, password);
+    try {
+      await initiateEmailSignUp(auth, email, password);
+      // On success, the useEffect will handle the rest.
+    } catch (error) {
+      // On failure, stop the submission process.
+      setIsSubmitting(false);
+    }
   };
 
   if (isUserLoading || (user && isSubmitting)) {

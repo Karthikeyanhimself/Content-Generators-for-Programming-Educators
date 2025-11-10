@@ -20,6 +20,7 @@ import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -32,7 +33,14 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    initiateEmailSignIn(auth, email, password);
+    setIsSubmitting(true);
+    try {
+        await initiateEmailSignIn(auth, email, password);
+        // On success, the onAuthStateChanged listener will trigger the redirect
+    } catch (error) {
+        // On failure, stop the loading state
+        setIsSubmitting(false);
+    }
   };
 
   if (isUserLoading || user) {
@@ -76,6 +84,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -94,10 +103,11 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
-              <Button type="submit" className="w-full" size="lg">
-                Log In
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? 'Logging In...' : 'Log In'}
               </Button>
             </form>
             <div className="mt-6 text-center text-sm text-muted-foreground">
