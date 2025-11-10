@@ -3,14 +3,19 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
+import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { collection, doc, orderBy, query } from 'firebase/firestore';
 import { useDoc } from '@/firebase/firestore/use-doc';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { format } from 'date-fns';
 
 export default function DashboardLayout({
   children,
@@ -30,6 +35,19 @@ export default function DashboardLayout({
   );
   
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<any>(userDocRef);
+
+  // Fetch submissions only if the user is an educator
+  const submissionsQuery = useMemoFirebase(
+    () =>
+      user && userProfile?.role === 'educator'
+        ? query(
+            collection(firestore, `educators/${user.uid}/submissions`),
+            orderBy('submittedAt', 'desc')
+          )
+        : null,
+    [firestore, user, userProfile]
+  );
+  const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
   useEffect(() => {
     setIsClient(true);
@@ -94,6 +112,60 @@ export default function DashboardLayout({
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                  </SidebarMenu>
+                  {userProfile?.role === 'educator' && (
+                  <SidebarGroup>
+                      <SidebarGroupLabel>Submissions</SidebarGroupLabel>
+                      <SidebarMenu>
+                          {isLoadingSubmissions ? (
+                              <p className="p-2 text-xs text-muted-foreground">Loading...</p>
+                          ) : submissions && submissions.length > 0 ? (
+                            <ScrollArea className="h-64">
+                              {submissions.map((sub: any) => (
+                                <SidebarMenuItem key={sub.id}>
+                                   <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <SidebarMenuButton variant="ghost" className="h-auto w-full justify-start text-left">
+                                                <div className="flex flex-col">
+                                                    <span>{sub.studentName}</span>
+                                                    <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.score}%</span>
+                                                </div>
+                                            </SidebarMenuButton>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent className="max-w-2xl">
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : ''}
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <ScrollArea className="max-h-[50vh]">
+                                                <div className="space-y-4 p-1">
+                                                    <div>
+                                                        <h4 className="font-semibold mb-2">Score: {sub.score}%</h4>
+                                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{sub.feedback}</p>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-semibold mb-2">Submitted Code:</h4>
+                                                        <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{sub.solutionCode}</code></pre>
+                                                    </div>
+                                                </div>
+                                            </ScrollArea>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Close</AlertDialogCancel>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </SidebarMenuItem>
+                              ))}
+                              </ScrollArea>
+                          ) : (
+                               <div className="p-2 text-center text-xs text-muted-foreground">
+                                  No submissions yet.
+                               </div>
+                          )}
+                      </SidebarMenu>
+                  </SidebarGroup>
+                )}
             </SidebarContent>
             <SidebarFooter className="p-2">
                 <SidebarMenu>

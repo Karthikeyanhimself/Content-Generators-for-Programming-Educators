@@ -952,83 +952,8 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 </CardFooter>
             )}
             </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline text-xl">Student Submissions</CardTitle>
-                    <CardDescription>Review your students' completed assignments.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoadingSubmissions ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">Loading submissions...</div>
-                    ) : submissions && submissions.length > 0 ? (
-                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                <TableHead>Student</TableHead>
-                                <TableHead>Concept</TableHead>
-                                <TableHead>Score</TableHead>
-                                <TableHead>Submitted</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {submissions.map((sub) => (
-                                    <TableRow key={sub.id}>
-                                        <TableCell className="font-medium">{sub.studentName}</TableCell>
-                                        <TableCell>{sub.dsaConcept}</TableCell>
-                                        <TableCell>{sub.score}%</TableCell>
-                                        <TableCell>{sub.submittedAt ? format(sub.submittedAt.toDate(), 'P') : 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="outline" size="sm">View Submission</Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent className="max-w-2xl">
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                           Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : ''}
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <ScrollArea className="max-h-[50vh]">
-                                                        <div className="space-y-4 p-1">
-                                                            <div>
-                                                                <h4 className="font-semibold mb-2">Score: {sub.score}%</h4>
-                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{sub.feedback}</p>
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="font-semibold mb-2">Submitted Code:</h4>
-                                                                <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{sub.solutionCode}</code></pre>
-                                                            </div>
-                                                        </div>
-                                                    </ScrollArea>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Close</AlertDialogCancel>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
-                            <GraduationCap className="h-8 w-8 text-muted-foreground"/>
-                            <h3 className="text-lg font-semibold text-foreground">
-                                No Submissions Yet
-                            </h3>
-                            <p className="text-muted-foreground text-sm">
-                                When students complete assignments, their results will appear here.
-                            </p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
         </div>
       </div>
     </div>
   );
 }
-
-    
