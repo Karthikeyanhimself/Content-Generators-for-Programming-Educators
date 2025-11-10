@@ -6,8 +6,8 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc, addDoc, collection, getDocs, query, limit, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
-import { assessCodeSubmission, AssessCodeInput, AssessCodeOutput } from '@/ai/flows/assess-code-submission';
-import { updateLearningGoalsAndCreateAssignment, UpdateLearningGoalsInput } from '@/ai/flows/update-learning-goals';
+import { assessCodeSubmission } from '@/ai/flows/assess-code-submission';
+import { updateLearningGoalsAndCreateAssignment } from '@/ai/flows/update-learning-goals';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,8 @@ import { BrainCircuit, Loader, Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { addDays } from 'date-fns';
+import type { AssessCodeInput, AssessCodeOutput } from '@/ai/flows/schemas';
+import type { UpdateLearningGoalsInput } from '@/ai/flows/schemas';
 
 type AssignmentData = {
     id: string;
