@@ -32,13 +32,13 @@ type Answer = {
   dsaConcept: string;
 };
 
+type ViewMode = 'loading' | 'assessment' | 'quiz' | 'results' | 'dashboard';
+
 export default function StudentDashboard() {
+  const [viewMode, setViewMode] = useState<ViewMode>('loading');
   const [quizData, setQuizData] = useState<GenerateQuizOutput | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
-  const [isQuizStarted, setIsQuizStarted] = useState(false);
-  const [isQuizFinished, setIsQuizFinished] = useState(false);
   const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]);
   const [score, setScore] = useState(0);
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
@@ -46,20 +46,24 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     async function fetchQuiz() {
+      if (quizData) {
+        setViewMode('assessment');
+        return;
+      };
       try {
         const data = await generateQuizQuestions();
         setQuizData(data);
+        setViewMode('assessment');
       } catch (error) {
         console.error('Failed to fetch quiz questions:', error);
-      } finally {
-        setIsLoading(false);
+        // TODO: Set an error state
       }
     }
     fetchQuiz();
   }, []);
 
   const handleStartQuiz = () => {
-    setIsQuizStarted(true);
+    setViewMode('quiz');
   };
 
   const handleAnswerSelect = (questionIndex: number, answer: string) => {
@@ -68,10 +72,12 @@ export default function StudentDashboard() {
 
   const handleFinishQuiz = async () => {
     if (!quizData) return;
+    
+    setViewMode('results');
     setIsGeneratingPlan(true);
 
     const answers: Answer[] = quizData.questions.map((q, index) => {
-      const selected = selectedAnswers[index];
+      const selected = selectedAnswers[index] || "Not answered";
       const isCorrect = selected === q.answer;
       return {
         question: q.question,
@@ -85,7 +91,6 @@ export default function StudentDashboard() {
     const calculatedScore = (answers.filter((a) => a.isCorrect).length / quizData.questions.length) * 100;
     setScore(calculatedScore);
     setFinalAnswers(answers);
-    setIsQuizFinished(true);
 
     const incorrectConcepts = answers
       .filter((a) => !a.isCorrect)
@@ -109,6 +114,10 @@ export default function StudentDashboard() {
 
     setIsGeneratingPlan(false);
   };
+  
+  const handleViewDashboard = () => {
+    setViewMode('dashboard');
+  };
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < (quizData?.questions.length ?? 0) - 1) {
@@ -118,7 +127,7 @@ export default function StudentDashboard() {
     }
   };
 
-  if (isLoading) {
+  if (viewMode === 'loading') {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <BrainCircuit className="h-12 w-12 animate-pulse text-primary" />
@@ -132,7 +141,82 @@ export default function StudentDashboard() {
     );
   }
 
-  if (isQuizFinished) {
+  if (viewMode === 'assessment') {
+    return (
+      <div className="container mx-auto flex h-[70vh] items-center justify-center">
+        <Card className="w-full max-w-lg text-center shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl font-headline">Welcome to AlgoGenius!</CardTitle>
+            <CardDescription className="text-base">
+              Let's start by assessing your current knowledge to create your personalized learning plan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              This short quiz will help us understand your strengths and weaknesses in key Data Structures and Algorithms concepts.
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={handleStartQuiz} className="w-full" size="lg">
+              Start Knowledge Assessment
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  if (viewMode === 'quiz') {
+    const currentQuestion = quizData?.questions[currentQuestionIndex];
+    if (!currentQuestion) return null;
+
+    const progressPercentage = ((currentQuestionIndex + 1) / (quizData?.questions.length ?? 1)) * 100;
+
+    return (
+      <div className="container mx-auto py-12">
+        <Card className="w-full max-w-2xl mx-auto">
+          <CardHeader>
+            <Progress value={progressPercentage} className="mb-4 h-2" />
+            <CardDescription>
+              Question {currentQuestionIndex + 1} of {quizData?.questions.length} &bull; {currentQuestion.dsaConcept}
+            </CardDescription>
+            <CardTitle className="font-headline text-2xl pt-2">
+              {currentQuestion.question}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={selectedAnswers[currentQuestionIndex] || ''}
+              onValueChange={(value) => handleAnswerSelect(currentQuestionIndex, value)}
+              className="space-y-4"
+            >
+              {currentQuestion.options.map((option, index) => (
+                <Label
+                  key={index}
+                  className="flex items-center gap-4 rounded-lg border p-4 text-base hover:bg-accent/50 has-[input:checked]:border-primary has-[input:checked]:bg-accent/80 transition-colors cursor-pointer"
+                >
+                  <RadioGroupItem value={option} id={`q${currentQuestionIndex}-o${index}`} />
+                  <span>{option}</span>
+                </Label>
+              ))}
+            </RadioGroup>
+          </CardContent>
+          <CardFooter>
+            <Button
+              onClick={handleNextQuestion}
+              disabled={!selectedAnswers[currentQuestionIndex]}
+              className="w-full"
+              size="lg"
+            >
+              {currentQuestionIndex === (quizData?.questions.length ?? 0) - 1 ? 'Finish Quiz' : 'Next Question'}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  if (viewMode === 'results') {
     return (
       <div className="container mx-auto py-12">
         <Card className="w-full max-w-3xl mx-auto shadow-2xl">
@@ -197,7 +281,7 @@ export default function StudentDashboard() {
             </div>
           </CardContent>
            <CardFooter>
-            <Button size="lg" className="w-full">
+            <Button size="lg" className="w-full" onClick={handleViewDashboard} disabled={isGeneratingPlan}>
                 <BookOpen className="mr-2"/>
                 Start Learning with My Plan
             </Button>
@@ -206,77 +290,51 @@ export default function StudentDashboard() {
       </div>
     );
   }
-
-  if (!isQuizStarted) {
+  
+  if (viewMode === 'dashboard') {
     return (
-      <div className="container mx-auto flex h-[70vh] items-center justify-center">
-        <Card className="w-full max-w-lg text-center shadow-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline">Welcome to AlgoGenius!</CardTitle>
-            <CardDescription className="text-base">
-              Let's start by assessing your current knowledge to create your personalized learning plan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              This short quiz will help us understand your strengths and weaknesses in key Data Structures and Algorithms concepts.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleStartQuiz} className="w-full" size="lg">
-              Start Knowledge Assessment
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
+        <div className="space-y-8">
+            {studyPlan && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-3 font-headline text-2xl">
+                            <Target className="text-primary h-6 w-6"/>
+                            Your Personalized Study Plan
+                        </CardTitle>
+                        <CardDescription>
+                            {studyPlan.intro}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <ul className="space-y-4">
+                            {studyPlan.topics.map((topic, index) => (
+                                <li key={index} className="p-4 bg-background rounded-lg border">
+                                    <h4 className="font-bold text-lg">{topic.dsaConcept}</h4>
+                                    <p className="text-muted-foreground">{topic.recommendation}</p>
+                                </li>
+                            ))}
+                         </ul>
+                    </CardContent>
+                </Card>
+            )}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">Assignments</CardTitle>
+                </CardHeader>
+                <CardContent>
+                     <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
+                        <h3 className="text-lg font-semibold text-foreground">
+                            No Assignments Yet
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                            Your assignments from educators will appear here.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    )
   }
 
-  const currentQuestion = quizData?.questions[currentQuestionIndex];
-  if (!currentQuestion) return null;
-
-  const progressPercentage = ((currentQuestionIndex + 1) / (quizData?.questions.length ?? 1)) * 100;
-
-  return (
-    <div className="container mx-auto py-12">
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader>
-          <Progress value={progressPercentage} className="mb-4 h-2" />
-          <CardDescription>
-            Question {currentQuestionIndex + 1} of {quizData?.questions.length} &bull; {currentQuestion.dsaConcept}
-          </CardDescription>
-          <CardTitle className="font-headline text-2xl pt-2">
-            {currentQuestion.question}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={selectedAnswers[currentQuestionIndex] || ''}
-            onValueChange={(value) => handleAnswerSelect(currentQuestionIndex, value)}
-            className="space-y-4"
-          >
-            {currentQuestion.options.map((option, index) => (
-              <Label
-                key={index}
-                className="flex items-center gap-4 rounded-lg border p-4 text-base hover:bg-accent/50 has-[input:checked]:border-primary has-[input:checked]:bg-accent/80 transition-colors cursor-pointer"
-              >
-                <RadioGroupItem value={option} id={`q${currentQuestionIndex}-o${index}`} />
-                <span>{option}</span>
-              </Label>
-            ))}
-          </RadioGroup>
-        </CardContent>
-        <CardFooter>
-          <Button
-            onClick={handleNextQuestion}
-            disabled={!selectedAnswers[currentQuestionIndex]}
-            className="w-full"
-            size="lg"
-          >
-            {currentQuestionIndex === (quizData?.questions.length ?? 0) - 1 ? 'Finish Quiz' : 'Next Question'}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+  return null;
 }
