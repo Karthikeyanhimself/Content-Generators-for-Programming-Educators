@@ -6,11 +6,12 @@ import {
   Users,
   GraduationCap,
   CheckCircle,
+  BookOpenCheck,
+  BarChart,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,95 +26,62 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
   const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image');
-  const featureImage = PlaceHolderImages.find(
-    (img) => img.id === 'feature-smart-test-cases'
-  );
-  const avatar1 = PlaceHolderImages.find(
-    (img) => img.id === 'testimonial-avatar-1'
-  );
-  const avatar2 = PlaceHolderImages.find(
-    (img) => img.id === 'testimonial-avatar-2'
-  );
-  const avatar3 = PlaceHolderImages.find(
-    (img) => img.id === 'testimonial-avatar-3'
-  );
 
   const features = [
     {
       icon: Palette,
-      title: 'Themed Scenario Generation',
+      title: 'For Educators: Creative Control',
       description:
-        'Engage with AI-generated problems from themes like Sci-Fi, Fantasy, and more to make learning fun.',
+        'Generate limitless programming scenarios from diverse themes like Sci-Fi or Fantasy. Craft the perfect assignments for your students.',
     },
     {
       icon: Scaling,
-      title: 'Adaptive Difficulty & Hints',
+      title: 'For Educators: Adaptive Assignments',
       description:
-        'Adjust problem difficulty with a simple slider and get smart hints when you are stuck.',
+        'Fine-tune problem difficulty and integrate specific DSA concepts to build targeted quizzes and challenges.',
     },
     {
-      icon: BotMessageSquare,
-      title: 'Smart Test Case Generation',
+      icon: BookOpenCheck,
+      title: 'For Students: Guided Learning',
       description:
-        'Visualize test cases, understand edge cases, and even create your own with our smart generator.',
+        'Tackle assignments with adaptive hints and detailed test case explanations. Master concepts, don’t just guess answers.',
     },
     {
-      icon: BrainCircuit,
-      title: 'Integrated Learning',
+      icon: BarChart,
+      title: 'For Students: Dynamic Study Plans',
       description:
-        'See time/space complexity, recognize patterns, and find similar problems on LeetCode.',
+        'Receive a personalized study plan that evolves with you. Turn your weaknesses into strengths with targeted practice.',
     },
     {
       icon: Users,
-      title: 'Role-Based Dashboards',
+      title: 'Role-Based Ecosystem',
       description:
-        'Dedicated dashboards for students to track progress and for educators to manage assignments.',
+        'A complete platform with dedicated dashboards and tools for both individual learning and classroom management.',
     },
     {
-      icon: GraduationCap,
-      title: 'Educator & Student Roles',
+      icon: BrainCircuit,
+      title: 'Powered by Generative AI',
       description:
-        'A complete platform for both individual learning and classroom environments.',
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: 'Alex Johnson',
-      role: 'Student',
-      text: 'AlgoGenius made learning data structures feel like a game. The themed problems are so much more engaging than standard textbook questions!',
-      avatar: avatar1,
-    },
-    {
-      name: 'Dr. Sarah Lee',
-      role: 'Educator',
-      text: 'The educator dashboard is a lifesaver. I can easily create assignments and track my students\' progress in real-time. Highly recommended.',
-      avatar: avatar2,
-    },
-    {
-      name: 'Maria Garcia',
-      role: 'Student',
-      text: 'The smart hints and test case explanations helped me finally understand recursion. I feel so much more confident in my coding interviews.',
-      avatar: avatar3,
+        'Our cutting-edge AI generates high-quality, unique content, ensuring you never run out of practice material.',
     },
   ];
 
   return (
     <>
-      <section className="w-full pt-16 md:pt-24 lg:pt-32 bg-card border-b">
+      <section className="w-full pt-24 md:pt-32 lg:pt-40 border-b border-border/50 bg-gradient-to-b from-background to-background/80">
         <div className="container px-4 md:px-6">
-          <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 xl:gap-16">
-            <div className="flex flex-col justify-center space-y-4">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none font-headline">
-                  Unlock Your Coding Potential with AlgoGenius
+          <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
+            <div className="flex flex-col justify-center space-y-6">
+              <div className="space-y-4">
+                 <Badge variant="outline" className="border-primary/50 text-primary">Now with Generative AI</Badge>
+                <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl/none font-headline">
+                  The Ultimate DSA Learning Platform
                 </h1>
                 <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                  Master data structures and algorithms with AI-powered, themed
-                  scenarios that make learning effective and fun.
+                  AlgoGenius empowers educators to create limitless, themed assignments and provides students with an adaptive, personalized path to mastering data structures and algorithms.
                 </p>
               </div>
-              <div className="flex flex-col gap-2 min-[400px]:flex-row">
+              <div className="flex flex-col gap-4 min-[400px]:flex-row">
                 <Button size="lg" asChild>
                   <Link href="/signup">Get Started for Free</Link>
                 </Button>
@@ -124,106 +92,57 @@ export default function Home() {
             </div>
             <div className="flex justify-center items-center">
               {heroImage && (
-                <Image
-                  src={heroImage.imageUrl}
-                  alt={heroImage.description}
-                  data-ai-hint={heroImage.imageHint}
-                  width={1200}
-                  height={800}
-                  className="rounded-xl object-cover aspect-[3/2] overflow-hidden"
-                />
+                <div className="relative w-full max-w-xl mx-auto">
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-3xl"></div>
+                    <Image
+                    src={heroImage.imageUrl}
+                    alt={heroImage.description}
+                    data-ai-hint={heroImage.imageHint}
+                    width={1200}
+                    height={800}
+                    className="rounded-xl object-cover aspect-[4/3] overflow-hidden relative"
+                    />
+                </div>
               )}
             </div>
           </div>
         </div>
+        <div className="container px-4 md:px-6 mt-16">
+            <div className="h-16"></div>
+        </div>
       </section>
 
-      <section id="features" className="w-full py-12 md:py-24 lg:py-32">
+      <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-background">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center">
             <div className="space-y-2">
-              <Badge>Core Features</Badge>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl font-headline">
-                A Smarter Way to Learn
+                A New Era of Programming Education
               </h2>
               <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                AlgoGenius is packed with features designed to accelerate your
-                learning, from AI-generated content to detailed performance
-                analytics.
+                AlgoGenius provides a complete ecosystem for both teaching and learning complex technical concepts.
               </p>
             </div>
           </div>
           <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:max-w-none lg:grid-cols-3 mt-12">
             {features.map((feature, index) => (
-              <Card key={index} className="h-full">
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 p-2 rounded-full">
-                      <feature.icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle>{feature.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    {feature.description}
-                  </p>
-                </CardContent>
-              </Card>
+              <div key={index} className="flex flex-col gap-4">
+                <div className="bg-primary/10 p-3 rounded-full w-min">
+                    <feature.icon className="h-6 w-6 text-primary" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-xl font-bold">{feature.title}</h3>
+                    <p className="text-muted-foreground">
+                        {feature.description}
+                    </p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section
-        id="testimonials"
-        className="w-full py-12 md:py-24 lg:py-32 bg-card"
-      >
-        <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
-          <div className="space-y-3">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
-              Loved by Students and Educators
-            </h2>
-            <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-              Hear what our users have to say about their experience with
-              AlgoGenius.
-            </p>
-          </div>
-          <div className="grid w-full grid-cols-1 gap-6 pt-8 lg:grid-cols-3 lg:gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Card key={index}>
-                <CardContent className="p-6">
-                  <p className="mb-4 text-muted-foreground">
-                    "{testimonial.text}"
-                  </p>
-                  <div className="flex items-center gap-3">
-                    {testimonial.avatar && (
-                      <Avatar>
-                        <AvatarImage
-                          src={testimonial.avatar.imageUrl}
-                          alt={testimonial.avatar.description}
-                          data-ai-hint={testimonial.avatar.imageHint}
-                        />
-                        <AvatarFallback>
-                          {testimonial.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div>
-                      <p className="font-semibold">{testimonial.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {testimonial.role}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="pricing" className="w-full py-12 md:py-24 lg:py-32">
+      <section id="pricing" className="w-full py-12 md:py-24 lg:py-32 border-t">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center space-y-2 text-center">
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl font-headline">
@@ -233,55 +152,53 @@ export default function Home() {
               Choose the plan that's right for you. Get started for free.
             </p>
           </div>
-          <div className="mx-auto mt-12 grid max-w-lg gap-8 lg:max-w-4xl lg:grid-cols-2">
-            <Card className="flex flex-col">
+          <div className="mx-auto mt-16 grid max-w-lg gap-8 lg:max-w-4xl lg:grid-cols-2">
+            <Card className="flex flex-col border-2 border-transparent hover:border-primary/50 transition-colors">
               <CardHeader>
-                <CardTitle>Student</CardTitle>
+                <CardTitle className="text-xl">Student</CardTitle>
                 <CardDescription>
                   For individuals ready to master algorithms.
                 </CardDescription>
-                <div className="text-4xl font-bold pt-2">Free</div>
+                <div className="text-5xl font-bold pt-4">Free</div>
               </CardHeader>
               <CardContent className="flex-1">
-                <ul className="space-y-2 text-muted-foreground">
+                <ul className="space-y-3 text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-primary" />
-                    Access to all themed scenarios
+                    Access and complete assignments
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-primary" />
-                    Adaptive hints
+                    Adaptive hints & test cases
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-primary" />
-                    Personal progress dashboard
+                    Personal progress dashboard & study plan
                   </li>
                 </ul>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" asChild>
+                <Button className="w-full" variant="outline" asChild>
                   <Link href="/signup">Sign Up as Student</Link>
                 </Button>
               </CardFooter>
             </Card>
-            <Card className="flex flex-col border-primary">
+            <Card className="flex flex-col border-2 border-primary/80 relative overflow-hidden">
+                <Badge className="absolute top-4 right-4">Most Popular</Badge>
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Educator</CardTitle>
-                  <Badge>Pro</Badge>
-                </div>
+                <CardTitle className="text-xl">Educator</CardTitle>
                 <CardDescription>
                   For professionals shaping the next generation of engineers.
                 </CardDescription>
-                <div className="text-4xl font-bold pt-2">
-                  $29<span className="text-xl font-normal">/month</span>
+                <div className="text-5xl font-bold pt-4">
+                  $29<span className="text-xl font-normal text-muted-foreground">/month</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
-                <ul className="space-y-2 text-muted-foreground">
+                <ul className="space-y-3 text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-primary" />
-                    All Student features, plus:
+                    AI-powered scenario generator
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-primary" />
@@ -307,15 +224,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="w-full py-12 md:py-24 lg:py-32 bg-card">
+      <section className="w-full py-12 md:py-24 lg:py-32 border-t">
         <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
           <div className="space-y-3">
             <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
-              Ready to Level Up Your Skills?
+              Ready to Level Up?
             </h2>
             <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-              Create an account and start your journey with AlgoGenius today.
-              It's free to get started.
+              Create your free account and start your journey with AlgoGenius today.
             </p>
           </div>
           <div className="mx-auto w-full max-w-sm space-y-2">

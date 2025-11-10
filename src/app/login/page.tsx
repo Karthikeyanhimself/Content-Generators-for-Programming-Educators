@@ -36,16 +36,23 @@ export default function LoginPage() {
   };
 
   if (isUserLoading || user) {
-    return <div>Loading...</div>;
+    return (
+        <div className="flex min-h-screen items-center justify-center">
+            <div className="text-center space-y-4">
+                <BrainCircuit className="h-12 w-12 text-primary animate-pulse mx-auto" />
+                <p className="text-lg text-muted-foreground">Loading your dashboard...</p>
+            </div>
+        </div>
+    );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <Link
+        <div className="mb-8 text-center">
+           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-2xl font-bold"
+            className="inline-flex items-center gap-3 text-3xl font-bold"
           >
             <BrainCircuit className="h-8 w-8 text-primary" />
             <span className="font-headline">AlgoGenius</span>
@@ -55,7 +62,7 @@ export default function LoginPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-headline">Welcome Back</CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              Enter your credentials to access your AlgoGenius dashboard.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -65,7 +72,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="student@example.com"
+                  placeholder="name@example.com"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -76,7 +83,7 @@ export default function LoginPage() {
                   <Label htmlFor="password">Password</Label>
                   <Link
                     href="#"
-                    className="ml-auto inline-block text-sm underline"
+                    className="ml-auto inline-block text-sm text-primary/80 hover:text-primary"
                   >
                     Forgot your password?
                   </Link>
@@ -89,13 +96,13 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full" size="lg">
                 Log In
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm">
+            <div className="mt-6 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
-              <Link href="/signup" className="underline">
+              <Link href="/signup" className="underline text-foreground font-medium">
                 Sign up
               </Link>
             </div>

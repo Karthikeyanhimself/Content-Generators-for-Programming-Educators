@@ -28,10 +28,30 @@
           "type": "string",
           "description": "User's last name."
         },
-        "dateOfBirth": {
-          "type": "string",
-          "description": "User's date of birth.",
-          "format": "date"
+        "academicLevel": {
+            "type": "string",
+            "description": "The academic level of the student (e.g., High School, University)."
+        },
+        "learningGoals": {
+            "type": "string",
+            "description": "The student's personal learning goals."
+        },
+        "preferredProgrammingLanguages": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "A list of the student's preferred programming languages."
+        },
+        "subjectSpecialization": {
+            "type": "string",
+            "description": "The educator's area of specialization."
+        },
+        "yearsOfExperience": {
+            "type": "number",
+            "description": "The educator's years of teaching experience."
+        },
+        "institution": {
+            "type": "string",
+            "description": "The institution the educator is affiliated with."
         }
       },
       "required": [
