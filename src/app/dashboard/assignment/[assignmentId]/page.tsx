@@ -9,17 +9,20 @@ import { useToast } from '@/hooks/use-toast';
 
 import { assessCodeSubmission } from '@/ai/flows/assess-code-submission';
 import { updateLearningGoalsAndCreateAssignment } from '@/ai/flows/update-learning-goals';
+import { generateStudyPlan, StudyPlan, GenerateStudyPlanInput } from '@/ai/flows/generate-study-plan';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { BrainCircuit, Loader, Send, Lightbulb, FileCheck2 } from 'lucide-react';
+import { BrainCircuit, Loader, Send, Lightbulb, FileCheck2, Target } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { addDays } from 'date-fns';
-import type { AssessCodeInput } from '@/ai/flows/schemas';
+import type { AssessCodeInput, AssessCodeOutput } from '@/ai/flows/schemas';
 import type { UpdateLearningGoalsInput } from '@/ai/flows/schemas';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type AssignmentData = {
     id: string;
@@ -50,6 +53,11 @@ type TestCaseData = {
     isEdgeCase: boolean;
 };
 
+type SubmissionResult = {
+    assessment: AssessCodeOutput;
+    studyPlan: StudyPlan;
+};
+
 export default function AssignmentPage() {
     const { assignmentId } = useParams();
     const router = useRouter();
@@ -59,6 +67,7 @@ export default function AssignmentPage() {
 
     const [solutionCode, setSolutionCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
 
     const assignmentDocRef = useMemoFirebase(
         () => (user ? doc(firestore, 'users', user.uid, 'assignments', assignmentId as string) : null),
@@ -101,7 +110,16 @@ export default function AssignmentPage() {
             };
             const assessmentResult = await assessCodeSubmission(assessmentInput);
 
-            // Step 2: Update the current assignment document with the results
+            // Step 2: Generate a study plan based on the result
+            const studyPlanInput: GenerateStudyPlanInput = {
+                currentScore: assessmentResult.score,
+                incorrectConcepts: assessmentResult.isCorrect ? [] : [assignmentData.dsaConcept]
+            };
+            const studyPlanResult = await generateStudyPlan(studyPlanInput);
+            
+            setSubmissionResult({ assessment: assessmentResult, studyPlan: studyPlanResult });
+
+            // Step 3: Update the current assignment document with the results
             await updateDoc(assignmentDocRef!, {
                 solutionCode: solutionCode,
                 score: assessmentResult.score,
@@ -110,13 +128,8 @@ export default function AssignmentPage() {
                 submittedAt: serverTimestamp(),
             });
 
-            toast({
-                title: `Assessment Complete! Score: ${assessmentResult.score}%`,
-                description: "The AI is now generating your next goal and assignment.",
-            });
-
             // --- Autonomous Agent Logic ---
-            // Step 3: Fetch recent performance history
+            // Step 4: Fetch recent performance history
             const historyQuery = query(
                 collection(firestore, 'users', user.uid, 'assignments'),
                 where('status', '==', 'completed'),
@@ -133,23 +146,23 @@ export default function AssignmentPage() {
                 };
             });
 
-            // Step 4: Get current user profile to find previous goal
+            // Step 5: Get current user profile to find previous goal
             const userDoc = await getDoc(doc(firestore, 'users', user.uid));
             const userProfile = userDoc.data();
 
-            // Step 5: Call the AI agent to get the next goal and generate a new assignment
+            // Step 6: Call the AI agent to get the next goal and generate a new assignment
             const agentInput: UpdateLearningGoalsInput = {
                 performanceHistory,
                 previousGoal: userProfile?.learningGoals,
             };
             const { goal, nextAssignment } = await updateLearningGoalsAndCreateAssignment(agentInput);
             
-            // Step 6: Update the user's profile with the new goal
+            // Step 7: Update the user's profile with the new goal
             await updateDoc(doc(firestore, 'users', user.uid), {
                 learningGoals: goal.nextGoal,
             });
 
-            // Step 7: Create the new scenario and assignment in Firestore
+            // Step 8: Create the new scenario and assignment in Firestore
             const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), {
                 theme: 'Business/Real-world',
                 content: nextAssignment.scenario,
@@ -185,11 +198,9 @@ export default function AssignmentPage() {
             }
 
             toast({
-                title: "New Goal & Assignment Created!",
-                description: "Your dashboard has been updated with your next challenge.",
+                title: `Assessment Complete! Score: ${assessmentResult.score}%`,
+                description: "Check the results and your new study plan.",
             });
-
-            router.push('/dashboard');
 
         } catch (error) {
             console.error("Error during submission and autonomous update:", error);
@@ -203,6 +214,11 @@ export default function AssignmentPage() {
         }
     };
     
+    const handleCloseDialog = () => {
+        setSubmissionResult(null);
+        router.push('/dashboard');
+    }
+
     const isLoading = isUserLoading || isAssignmentLoading || isScenarioLoading || areHintsLoading || areTestCasesLoading;
 
     if (isLoading) {
@@ -228,6 +244,53 @@ export default function AssignmentPage() {
 
     return (
         <div className="container mx-auto max-w-4xl py-8">
+            <Dialog open={!!submissionResult} onOpenChange={(open) => !open && handleCloseDialog()}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-headline">Submission Results</DialogTitle>
+                         <DialogDescription>
+                            Great work! Here's your feedback and your next steps.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {submissionResult && (
+                         <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
+                             <div className="text-center">
+                                <p className="text-lg text-muted-foreground">You scored</p>
+                                <p className="text-6xl font-bold text-primary">{submissionResult.assessment.score}%</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold mb-2 text-lg">AI Feedback:</h4>
+                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{submissionResult.assessment.feedback}</p>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold mb-2 text-lg">Your Submitted Code:</h4>
+                                    <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{solutionCode}</code></pre>
+                                </div>
+                            </div>
+                           
+                            <div className="p-4 rounded-lg border bg-card-background mt-4">
+                                 <h3 className="flex items-center gap-3 text-xl font-semibold mb-3 font-headline"><Target className="text-primary"/> Your New Study Plan</h3>
+                                 <p className="text-muted-foreground mb-4 text-sm">{submissionResult.studyPlan.intro}</p>
+                                 <ul className="space-y-3">
+                                    {submissionResult.studyPlan.topics.map((topic, index) => (
+                                        <li key={index} className="p-3 bg-background rounded-lg border">
+                                            <h4 className="font-bold">{topic.dsaConcept}</h4>
+                                            <p className="text-muted-foreground text-sm">{topic.recommendation}</p>
+                                        </li>
+                                    ))}
+                                 </ul>
+                            </div>
+                         </div>
+                    )}
+                    <Button onClick={handleCloseDialog} className="mt-4">
+                        Back to Dashboard
+                    </Button>
+                </DialogContent>
+            </Dialog>
+
+
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-start">
@@ -354,3 +417,5 @@ export default function AssignmentPage() {
         </div>
     );
 }
+
+    
