@@ -14,10 +14,23 @@ import {
   generateQuizQuestions,
   GenerateQuizOutput,
 } from '@/ai/flows/generate-quiz-questions';
-import { Loader, BrainCircuit } from 'lucide-react';
+import {
+  generateStudyPlan,
+  GenerateStudyPlanInput,
+  StudyPlan,
+} from '@/ai/flows/generate-study-plan';
+import { Loader, BrainCircuit, Check, X, Target, BookOpen } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Progress } from '../ui/progress';
+
+type Answer = {
+  question: string;
+  selected: string;
+  correct: string;
+  isCorrect: boolean;
+  dsaConcept: string;
+};
 
 export default function StudentDashboard() {
   const [quizData, setQuizData] = useState<GenerateQuizOutput | null>(null);
@@ -25,6 +38,11 @@ export default function StudentDashboard() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
   const [isQuizStarted, setIsQuizStarted] = useState(false);
+  const [isQuizFinished, setIsQuizFinished] = useState(false);
+  const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]);
+  const [score, setScore] = useState(0);
+  const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   useEffect(() => {
     async function fetchQuiz() {
@@ -33,7 +51,6 @@ export default function StudentDashboard() {
         setQuizData(data);
       } catch (error) {
         console.error('Failed to fetch quiz questions:', error);
-        // Optionally, set an error state to show in the UI
       } finally {
         setIsLoading(false);
       }
@@ -49,12 +66,55 @@ export default function StudentDashboard() {
     setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: answer }));
   };
 
+  const handleFinishQuiz = async () => {
+    if (!quizData) return;
+    setIsGeneratingPlan(true);
+
+    const answers: Answer[] = quizData.questions.map((q, index) => {
+      const selected = selectedAnswers[index];
+      const isCorrect = selected === q.answer;
+      return {
+        question: q.question,
+        selected,
+        correct: q.answer,
+        isCorrect,
+        dsaConcept: q.dsaConcept,
+      };
+    });
+
+    const calculatedScore = (answers.filter((a) => a.isCorrect).length / quizData.questions.length) * 100;
+    setScore(calculatedScore);
+    setFinalAnswers(answers);
+    setIsQuizFinished(true);
+
+    const incorrectConcepts = answers
+      .filter((a) => !a.isCorrect)
+      .map((a) => a.dsaConcept);
+    
+    if(incorrectConcepts.length > 0) {
+      const planInput: GenerateStudyPlanInput = {
+        incorrectConcepts: [...new Set(incorrectConcepts)], // Pass unique concepts
+        currentScore: calculatedScore,
+      };
+      try {
+        const plan = await generateStudyPlan(planInput);
+        setStudyPlan(plan);
+      } catch(e) {
+        console.error("Failed to generate study plan", e)
+      }
+    } else {
+        setStudyPlan({ topics: [], intro: "Congratulations on a perfect score! Keep up the great work by practicing more complex problems."})
+    }
+
+
+    setIsGeneratingPlan(false);
+  };
+
   const handleNextQuestion = () => {
     if (currentQuestionIndex < (quizData?.questions.length ?? 0) - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      // Quiz is finished, handle submission logic here in the next step
-      console.log('Quiz finished. Final answers:', selectedAnswers);
+      handleFinishQuiz();
     }
   };
 
@@ -68,6 +128,81 @@ export default function StudentDashboard() {
         <p className="text-muted-foreground">
           Please wait while we generate your personalized quiz...
         </p>
+      </div>
+    );
+  }
+
+  if (isQuizFinished) {
+    return (
+      <div className="container mx-auto py-12">
+        <Card className="w-full max-w-3xl mx-auto shadow-2xl">
+          <CardHeader className="text-center">
+            <CardTitle className="text-3xl font-headline">Assessment Complete!</CardTitle>
+            <CardDescription className="text-lg">
+              You scored
+            </CardDescription>
+            <p className="text-6xl font-bold text-primary">{Math.round(score)}%</p>
+          </CardHeader>
+          <CardContent>
+            {isGeneratingPlan ? (
+                 <div className="flex h-[20vh] flex-col items-center justify-center gap-4 text-center">
+                    <BrainCircuit className="h-10 w-10 animate-pulse text-primary" />
+                    <h3 className="text-lg font-semibold text-foreground">
+                    Analyzing your results and building your plan...
+                    </h3>
+                </div>
+            ) : (
+                studyPlan && (
+                    <div className="mt-6 space-y-6">
+                        <div className="p-6 rounded-lg border bg-card-background">
+                             <h3 className="flex items-center gap-3 text-2xl font-semibold mb-4 font-headline"><Target className="text-primary"/> Your Personalized Study Plan</h3>
+                             <p className="text-muted-foreground mb-6">{studyPlan.intro}</p>
+                             <ul className="space-y-4">
+                                {studyPlan.topics.map((topic, index) => (
+                                    <li key={index} className="p-4 bg-background rounded-lg border">
+                                        <h4 className="font-bold text-lg">{topic.dsaConcept}</h4>
+                                        <p className="text-muted-foreground">{topic.recommendation}</p>
+                                    </li>
+                                ))}
+                             </ul>
+                        </div>
+                    </div>
+                )
+            )}
+
+            <div className="mt-8">
+              <h3 className="text-xl font-semibold mb-4 text-center">Your Answers</h3>
+              <div className="space-y-4">
+                {finalAnswers.map((answer, index) => (
+                  <div key={index} className="p-4 border rounded-lg flex items-start gap-4">
+                    {answer.isCorrect ? (
+                      <Check className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                    ) : (
+                      <X className="h-5 w-5 text-red-500 mt-1 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium">{answer.question}</p>
+                      <p className={`text-sm ${answer.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                        Your answer: {answer.selected}
+                      </p>
+                      {!answer.isCorrect && (
+                        <p className="text-sm text-muted-foreground">
+                          Correct answer: {answer.correct}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+           <CardFooter>
+            <Button size="lg" className="w-full">
+                <BookOpen className="mr-2"/>
+                Start Learning with My Plan
+            </Button>
+           </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -106,13 +241,13 @@ export default function StudentDashboard() {
     <div className="container mx-auto py-12">
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <Progress value={progressPercentage} className="mb-4" />
-          <CardTitle className="font-headline text-xl">
-            Question {currentQuestionIndex + 1} of {quizData?.questions.length}
-          </CardTitle>
-          <CardDescription className="pt-2 text-lg">
-            {currentQuestion.question}
+          <Progress value={progressPercentage} className="mb-4 h-2" />
+          <CardDescription>
+            Question {currentQuestionIndex + 1} of {quizData?.questions.length} &bull; {currentQuestion.dsaConcept}
           </CardDescription>
+          <CardTitle className="font-headline text-2xl pt-2">
+            {currentQuestion.question}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <RadioGroup
@@ -123,7 +258,7 @@ export default function StudentDashboard() {
             {currentQuestion.options.map((option, index) => (
               <Label
                 key={index}
-                className="flex items-center gap-4 rounded-md border p-4 hover:bg-accent/50 has-[input:checked]:border-primary has-[input:checked]:bg-accent/80 transition-colors"
+                className="flex items-center gap-4 rounded-lg border p-4 text-base hover:bg-accent/50 has-[input:checked]:border-primary has-[input:checked]:bg-accent/80 transition-colors cursor-pointer"
               >
                 <RadioGroupItem value={option} id={`q${currentQuestionIndex}-o${index}`} />
                 <span>{option}</span>
