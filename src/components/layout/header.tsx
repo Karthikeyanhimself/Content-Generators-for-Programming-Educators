@@ -29,26 +29,6 @@ export function Header() {
           <BrainCircuit className="h-6 w-6 text-primary" />
           <span className="font-headline">AlgoGenius</span>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-          <Link
-            href="/#features"
-            className="transition-colors hover:text-primary"
-          >
-            Features
-          </Link>
-          <Link
-            href="/#testimonials"
-            className="transition-colors hover:text-primary"
-          >
-            Testimonials
-          </Link>
-          <Link
-            href="/#pricing"
-            className="transition-colors hover:text-primary"
-          >
-            Pricing
-          </Link>
-        </nav>
         <div className="flex items-center gap-2 sm:gap-4">
           {isUserLoading ? (
             <div className="h-10 w-24 animate-pulse rounded-md bg-muted"></div>
