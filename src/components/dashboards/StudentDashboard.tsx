@@ -20,12 +20,12 @@ import {
   GenerateStudyPlanInput,
   StudyPlan,
 } from '@/ai/flows/generate-study-plan';
-import { Loader, BrainCircuit, Check, X, Target, BookOpen, BookCopy, CalendarDays } from 'lucide-react';
+import { Loader, BrainCircuit, Check, X, Target, BookOpen, BookCopy, CalendarDays, Bot } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Progress } from '../ui/progress';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, orderBy, query } from 'firebase/firestore';
+import { collection, orderBy, query, doc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import {
@@ -40,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from '../ui/scroll-area';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 
 type Answer = {
   question: string;
@@ -52,6 +53,9 @@ type Answer = {
 type ViewMode = 'loading' | 'assessment' | 'quiz' | 'results' | 'dashboard';
 
 export default function StudentDashboard({ userProfile }: { userProfile: any }) {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
   const [viewMode, setViewMode] = useState<ViewMode>('loading');
   const [quizData, setQuizData] = useState<GenerateQuizOutput | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -61,28 +65,26 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
-  // Added for fetching assignments
-  const { user } = useUser();
-  const firestore = useFirestore();
   const assignmentsQuery = useMemoFirebase(
     () =>
       user
         ? query(
             collection(firestore, `users/${user.uid}/assignments`),
-            orderBy('dueDate', 'asc')
+            orderBy('createdAt', 'desc')
           )
         : null,
     [firestore, user]
   );
   const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
 
-
   useEffect(() => {
-    // A real app would check if the assessment has been taken before.
-    // For this demo, we can check a flag on the user profile.
-    if (userProfile && userProfile.hasCompletedAssessment) {
+    if (!userProfile || isUserLoading) {
+      setViewMode('loading');
+      return;
+    }
+
+    if (userProfile.hasCompletedAssessment) {
         setViewMode('dashboard');
-        // Optionally, fetch their existing study plan if it's stored
     } else {
        async function fetchQuiz() {
             if (quizData) {
@@ -95,12 +97,11 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                 setViewMode('assessment');
             } catch (error) {
                 console.error('Failed to fetch quiz questions:', error);
-                // TODO: Set an error state
             }
         }
         fetchQuiz();
     }
-  }, [userProfile, quizData]);
+  }, [userProfile, quizData, isUserLoading]);
 
   const handleStartQuiz = () => {
     setViewMode('quiz');
@@ -111,7 +112,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   };
 
   const handleFinishQuiz = async () => {
-    if (!quizData) return;
+    if (!quizData || !user) return;
     
     setViewMode('results');
     setIsGeneratingPlan(true);
@@ -136,21 +137,23 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
       .filter((a) => !a.isCorrect)
       .map((a) => a.dsaConcept);
     
-    if(incorrectConcepts.length > 0) {
-      const planInput: GenerateStudyPlanInput = {
-        incorrectConcepts: [...new Set(incorrectConcepts)], // Pass unique concepts
+    const planInput: GenerateStudyPlanInput = {
+        incorrectConcepts: [...new Set(incorrectConcepts)],
         currentScore: calculatedScore,
-      };
-      try {
+    };
+
+    try {
         const plan = await generateStudyPlan(planInput);
         setStudyPlan(plan);
-      } catch(e) {
+        // Save the plan and assessment flag to the user's profile
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, {
+            hasCompletedAssessment: true,
+            learningGoals: plan.intro, // Set initial goal
+        });
+    } catch(e) {
         console.error("Failed to generate study plan", e)
-      }
-    } else {
-        setStudyPlan({ topics: [], intro: "Congratulations on a perfect score! Keep up the great work by practicing more complex problems."})
     }
-
 
     setIsGeneratingPlan(false);
   };
@@ -323,7 +326,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
            <CardFooter>
             <Button size="lg" className="w-full" onClick={handleViewDashboard} disabled={isGeneratingPlan}>
                 <BookOpen className="mr-2"/>
-                Start Learning with My Plan
+                Start Learning
             </Button>
            </CardFooter>
         </Card>
@@ -334,33 +337,18 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   if (viewMode === 'dashboard') {
     return (
         <div className="space-y-8">
-            {studyPlan && (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-3 font-headline text-2xl">
-                            <Target className="text-primary h-6 w-6"/>
-                            Your Personalized Study Plan
-                        </CardTitle>
-                        <CardDescription>
-                            {studyPlan.intro}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <ul className="space-y-4">
-                            {studyPlan.topics.map((topic, index) => (
-                                <li key={index} className="p-4 bg-background rounded-lg border">
-                                    <h4 className="font-bold text-lg">{topic.dsaConcept}</h4>
-                                    <p className="text-muted-foreground">{topic.recommendation}</p>
-                                </li>
-                            ))}
-                         </ul>
-                    </CardContent>
-                </Card>
-            )}
+             <Alert className="bg-primary/5 border-primary/20">
+                <Target className="h-4 w-4 !text-primary" />
+                <AlertTitle className="text-primary font-bold">Current AI Goal</AlertTitle>
+                <AlertDescription>
+                    {userProfile.learningGoals || "Your learning plan is being generated. Complete an assignment to get your first goal!"}
+                </AlertDescription>
+            </Alert>
+            
             <Card>
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Assignments</CardTitle>
-                    <CardDescription>Challenges assigned to you by your educators.</CardDescription>
+                    <CardDescription>Challenges assigned to you by your educators or the AI agent.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      {assignmentsLoading ? (
@@ -371,19 +359,24 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                      ) : assignments && assignments.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {assignments.map((assignment: any) => (
-                                <Card key={assignment.id}>
+                                <Card key={assignment.id} className="flex flex-col">
                                     <CardHeader>
-                                        <CardTitle className="text-xl">{assignment.dsaConcept}</CardTitle>
-                                        <CardDescription>from Educator</CardDescription>
+                                        <div className="flex justify-between items-center">
+                                            <CardTitle className="text-xl">{assignment.dsaConcept}</CardTitle>
+                                            {assignment.isAutonomouslyGenerated && (
+                                                <Badge variant="outline" className="border-primary/50 text-primary"><Bot className="h-3 w-3 mr-1.5"/> AI</Badge>
+                                            )}
+                                        </div>
+                                        <CardDescription>from {assignment.educatorId === 'SYSTEM' ? 'AI Agent' : 'Educator'}</CardDescription>
                                     </CardHeader>
-                                    <CardContent className="space-y-2">
+                                    <CardContent className="space-y-2 flex-1">
                                          <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Due Date</span>
                                             <span>{assignment.dueDate ? format(assignment.dueDate.toDate(), 'PPP') : 'N/A'}</span>
                                         </div>
                                          <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Status</span>
-                                            <Badge variant={assignment.status === 'assigned' ? 'default' : 'secondary'}>{assignment.status}</Badge>
+                                            <Badge variant={assignment.status === 'assigned' ? 'default' : 'secondary'} className="capitalize">{assignment.status}</Badge>
                                         </div>
                                         {assignment.status === 'completed' && (
                                              <div className="flex items-center justify-between text-sm font-medium pt-2">
@@ -450,5 +443,3 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
-
-    

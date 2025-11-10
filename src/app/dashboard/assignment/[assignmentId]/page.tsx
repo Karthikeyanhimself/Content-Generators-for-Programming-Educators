@@ -3,16 +3,18 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, setDoc, addDoc, collection, getDocs, query, limit, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 import { assessCodeSubmission, AssessCodeInput, AssessCodeOutput } from '@/ai/flows/assess-code-submission';
+import { updateLearningGoalsAndCreateAssignment, UpdateLearningGoalsInput } from '@/ai/flows/update-learning-goals';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { BrainCircuit, Loader, Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { addDays } from 'date-fns';
 
 type AssignmentData = {
     id: string;
@@ -56,18 +58,19 @@ export default function AssignmentPage() {
         if (!solutionCode || !assignmentData || !scenarioData || !user) return;
 
         setIsSubmitting(true);
-        toast({ title: "Submitting your solution...", description: "The AI is warming up to assess your code." });
+        toast({ title: "Submitting your solution...", description: "The AI is assessing your code. This may take a moment." });
 
         try {
+            // Step 1: Assess the current submission
             const assessmentInput: AssessCodeInput = {
                 scenario: scenarioData.content,
                 dsaConcept: assignmentData.dsaConcept,
                 difficulty: scenarioData.difficulty,
                 studentCode: solutionCode,
             };
-
             const assessmentResult = await assessCodeSubmission(assessmentInput);
 
+            // Step 2: Update the current assignment document with the results
             await updateDoc(assignmentDocRef!, {
                 solutionCode: solutionCode,
                 score: assessmentResult.score,
@@ -75,20 +78,82 @@ export default function AssignmentPage() {
                 status: 'completed',
                 submittedAt: serverTimestamp(),
             });
-            
+
             toast({
                 title: `Assessment Complete! Score: ${assessmentResult.score}%`,
-                description: "Your assignment has been graded. You can view feedback on your dashboard.",
+                description: "The AI is now generating your next goal and assignment.",
+            });
+
+            // --- Autonomous Agent Logic ---
+            // Step 3: Fetch recent performance history
+            const historyQuery = query(
+                collection(firestore, 'users', user.uid, 'assignments'),
+                where('status', '==', 'completed'),
+                orderBy('submittedAt', 'desc'),
+                limit(5)
+            );
+            const historySnapshot = await getDocs(historyQuery);
+            const performanceHistory = historySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    dsaConcept: data.dsaConcept,
+                    score: data.score,
+                    difficulty: 'Medium' // Placeholder, this should be fetched from scenario
+                };
+            });
+
+            // Step 4: Get current user profile to find previous goal
+            const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+            const userProfile = userDoc.data();
+
+            // Step 5: Call the AI agent to get the next goal and generate a new assignment
+            const agentInput: UpdateLearningGoalsInput = {
+                performanceHistory,
+                previousGoal: userProfile?.learningGoals,
+            };
+            const { goal, nextAssignment } = await updateLearningGoalsAndCreateAssignment(agentInput);
+            
+            // Step 6: Update the user's profile with the new goal
+            await updateDoc(doc(firestore, 'users', user.uid), {
+                learningGoals: goal.nextGoal,
+            });
+
+            // Step 7: Create the new scenario and assignment in Firestore
+            const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), {
+                theme: 'Business/Real-world',
+                content: nextAssignment.scenario,
+                difficulty: nextAssignment.dsaConcept,
+                dsaConcept: nextAssignment.dsaConcept,
+                createdAt: serverTimestamp(),
+                createdBy: 'SYSTEM',
+            });
+
+            const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`));
+            await setDoc(newAssignmentRef, {
+                id: newAssignmentRef.id,
+                educatorId: 'SYSTEM',
+                scenarioId: newScenarioRef.id,
+                studentId: user.uid,
+                dueDate: addDays(new Date(), 7),
+                status: 'assigned',
+                createdAt: serverTimestamp(),
+                dsaConcept: nextAssignment.dsaConcept,
+                isAutonomouslyGenerated: true,
+            });
+
+            toast({
+                title: "New Goal & Assignment Created!",
+                description: "Your dashboard has been updated with your next challenge.",
             });
 
             router.push('/dashboard');
 
         } catch (error) {
-            console.error("Error assessing code:", error);
+            console.error("Error during submission and autonomous update:", error);
             toast({
                 variant: 'destructive',
                 title: "Submission Error",
-                description: "There was a problem submitting your code for assessment. Please try again."
+                description: "There was a problem submitting your code or generating the next step. Please try again."
             });
         } finally {
             setIsSubmitting(false);
@@ -170,7 +235,7 @@ export default function AssignmentPage() {
                                 {isSubmitting ? (
                                     <>
                                         <Loader className="mr-2 h-4 w-4 animate-spin"/>
-                                        Assessing Your Code...
+                                        Assessing & Updating Your Path...
                                     </>
                                 ) : (
                                     <>
