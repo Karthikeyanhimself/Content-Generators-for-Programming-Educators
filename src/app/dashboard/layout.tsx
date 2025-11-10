@@ -3,10 +3,10 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, UserCircle } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter } from '@/components/ui/sidebar';
+import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -65,17 +65,17 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-        <Sidebar>
+        <Sidebar collapsible="icon">
             <SidebarHeader>
                  <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
                     <BrainCircuit className="h-6 w-6 text-primary" />
-                    <span className="font-headline">AlgoGenius</span>
+                    <span className="font-headline group-data-[collapsible=icon]:hidden">AlgoGenius</span>
                 </Link>
             </SidebarHeader>
             <SidebarContent className="p-2">
                  <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'}>
+                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip="Dashboard">
                             <Link href="/dashboard">
                                 <LayoutDashboard />
                                 <span>Dashboard</span>
@@ -83,7 +83,7 @@ export default function DashboardLayout({
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/profile')}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/profile')} tooltip="Profile">
                             <Link href="/dashboard/profile">
                                 <UserCircle />
                                 <span>Profile</span>
@@ -105,7 +105,7 @@ export default function DashboardLayout({
                                 {userProfile?.firstName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className='flex flex-col overflow-hidden'>
+                            <div className='flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden'>
                                 <p className="text-sm font-medium leading-none truncate">
                                     {userProfile?.firstName || 'User'}
                                 </p>
@@ -116,10 +116,15 @@ export default function DashboardLayout({
                         </div>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton onClick={handleLogout}>
+                        <SidebarMenuButton onClick={handleLogout} tooltip="Log Out">
                             <LogOut />
-                            <span>Log out</span>
+                            <span className="group-data-[collapsible=icon]:hidden">Log out</span>
                         </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                         <SidebarTrigger className="group-data-[collapsible=icon]:rotate-180">
+                            <PanelLeft/>
+                         </SidebarTrigger>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>
