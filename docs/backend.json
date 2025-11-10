@@ -124,7 +124,7 @@
         "studentId": { "type": "string", "description": "ID of the Student assigned." },
         "scenarioId": { "type": "string", "description": "ID of the Scenario used." },
         "dueDate": { "type": "string", "format": "date-time", "description": "Due date for the assignment." },
-        "status": { "type": "string", "description": "Status (e.g., Assigned, In Progress, Completed).", "enum": ["assigned", "completed", "draft"] },
+        "status": { "type": "string", "description": "Status (e.g., Assigned, Submitted, Completed).", "enum": ["assigned", "submitted", "completed", "draft"] },
         "dsaConcept": { "type": "string", "description": "The primary DSA concept for the assignment." },
         "solutionCode": { "type": "string", "description": "The code submitted by the student." },
         "score": { "type": "number", "description": "The score (0-100) from AI assessment." },
@@ -148,9 +148,10 @@
         "score": { "type": "number", "description": "The score (0-100) from AI assessment." },
         "feedback": { "type": "string", "description": "AI-generated feedback on the submission." },
         "solutionCode": { "type": "string", "description": "The code submitted by the student." },
-        "submittedAt": { "type": "string", "format": "date-time", "description": "Timestamp of submission." }
+        "submittedAt": { "type": "string", "format": "date-time", "description": "Timestamp of submission." },
+        "isPublished": { "type": "boolean", "description": "Indicates if the educator has published the score to the student." }
       },
-      "required": [ "studentId", "studentEmail", "studentName", "originalAssignmentId", "dsaConcept", "score", "feedback", "solutionCode", "submittedAt" ]
+      "required": [ "studentId", "studentEmail", "studentName", "originalAssignmentId", "dsaConcept", "score", "feedback", "solutionCode", "submittedAt", "isPublished" ]
     },
     "Hint": {
       "$schema": "http://json-schema.org/draft-07/schema#",

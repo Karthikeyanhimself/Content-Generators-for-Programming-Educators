@@ -335,6 +335,18 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   }
   
   if (viewMode === 'dashboard') {
+    const getStatusVariant = (status: string) => {
+        switch (status) {
+            case 'assigned':
+                return 'default';
+            case 'submitted':
+                return 'outline';
+            case 'completed':
+                return 'secondary';
+            default:
+                return 'default';
+        }
+    };
     return (
         <div className="space-y-8">
              <Alert className="bg-primary/5 border-primary/20">
@@ -376,7 +388,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                         </div>
                                          <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Status</span>
-                                            <Badge variant={assignment.status === 'assigned' ? 'default' : 'secondary'} className="capitalize">{assignment.status}</Badge>
+                                            <Badge variant={getStatusVariant(assignment.status)} className="capitalize">{assignment.status}</Badge>
                                         </div>
                                         {assignment.status === 'completed' && (
                                              <div className="flex items-center justify-between text-sm font-medium pt-2">
@@ -386,9 +398,11 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                         )}
                                     </CardContent>
                                     <CardFooter>
-                                        {assignment.status === 'assigned' ? (
+                                        {assignment.status === 'assigned' || assignment.status === 'submitted' ? (
                                             <Button className="w-full" asChild>
-                                                <Link href={`/dashboard/assignment/${assignment.id}`}>Start Assignment</Link>
+                                                <Link href={`/dashboard/assignment/${assignment.id}`}>
+                                                  {assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission'}
+                                                </Link>
                                             </Button>
                                         ) : (
                                             <AlertDialog>
@@ -443,3 +457,5 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
+
+    

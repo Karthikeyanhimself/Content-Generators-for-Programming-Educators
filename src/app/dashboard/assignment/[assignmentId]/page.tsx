@@ -30,7 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 type AssignmentData = {
     id: string;
     scenarioId: string;
-    status: 'assigned' | 'completed';
+    status: 'assigned' | 'submitted' | 'completed';
     dsaConcept: string;
     score?: number;
     feedback?: string;
@@ -114,50 +114,48 @@ export default function AssignmentPage() {
             };
             const assessmentResult = await assessCodeSubmission(assessmentInput);
 
-            // Step 2: Generate a study plan based on the result
-            const studyPlanInput: GenerateStudyPlanInput = {
-                currentScore: assessmentResult.score,
-                incorrectConcepts: assessmentResult.isCorrect ? [] : [assignmentData.dsaConcept]
-            };
-            const studyPlanResult = await generateStudyPlan(studyPlanInput);
-            
-            setSubmissionResult({ assessment: assessmentResult, studyPlan: studyPlanResult });
+            // Step 2: The student doesn't get a study plan immediately anymore.
+            // We just show a confirmation.
+            toast({
+                title: `Submission Received!`,
+                description: "Your submission is pending review by your educator.",
+            });
             
             const submittedAtTimestamp = serverTimestamp();
 
-            // Step 3: Update the current assignment document with the results
-            const submissionData = {
+            // Step 3: Update the student's assignment document with the code and 'submitted' status.
+            // NO score or feedback is saved here.
+            const studentAssignmentUpdate = {
                 solutionCode: solutionCode,
-                score: assessmentResult.score,
-                feedback: assessmentResult.feedback,
-                status: 'completed' as const,
+                status: 'submitted' as const,
                 submittedAt: submittedAtTimestamp,
             };
 
-            await updateDoc(assignmentDocRef, submissionData)
+            await updateDoc(assignmentDocRef, studentAssignmentUpdate)
               .catch(error => {
                 const permissionError = new FirestorePermissionError({
                     path: assignmentDocRef.path,
                     operation: 'update',
-                    requestResourceData: submissionData
+                    requestResourceData: studentAssignmentUpdate
                 });
                 errorEmitter.emit('permission-error', permissionError);
                 throw permissionError;
               });
 
-            // Step 3.5: Denormalize submission for educator
+            // Step 4: Denormalize submission for educator, including the AI's assessment.
             if (assignmentData.educatorId && assignmentData.educatorId !== 'SYSTEM') {
                 const educatorSubmissionsRef = collection(firestore, 'educators', assignmentData.educatorId, 'submissions');
                 const submissionRecord = {
                     studentId: user.uid,
                     studentEmail: user.email,
                     studentName: `${user.displayName || user.email}`,
-                    originalAssignmentId: assignmentData.id,
+                    originalAssignmentId: assignmentId as string,
                     dsaConcept: assignmentData.dsaConcept,
                     score: assessmentResult.score,
                     feedback: assessmentResult.feedback,
                     solutionCode: solutionCode,
                     submittedAt: submittedAtTimestamp,
+                    isPublished: false, // NEW: Mark as not published
                 };
                  addDoc(educatorSubmissionsRef, submissionRecord).catch(error => {
                     const permissionError = new FirestorePermissionError({
@@ -166,128 +164,12 @@ export default function AssignmentPage() {
                         requestResourceData: submissionRecord,
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                });
-            }
-
-
-            // --- Autonomous Agent Logic ---
-            // Step 4: Fetch recent performance history
-            const historyQuery = query(
-                collection(firestore, 'users', user.uid, 'assignments'),
-                orderBy('submittedAt', 'desc'),
-                limit(10)
-            );
-            const historySnapshot = await getDocs(historyQuery);
-            const performanceHistory = historySnapshot.docs
-                .map(doc => doc.data())
-                .filter(data => data.status === 'completed') // Filter for completed assignments on the client
-                .slice(0, 5) // Take the 5 most recent completed ones
-                .map(data => ({
-                    dsaConcept: data.dsaConcept,
-                    score: data.score,
-                    difficulty: 'Medium' // Placeholder, this should be fetched from scenario
-                }));
-
-
-            // Step 5: Get current user profile to find previous goal
-            const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-            const userProfile = userDoc.data();
-
-            // Step 6: Call the AI agent to get the next goal and generate a new assignment
-            const agentInput: UpdateLearningGoalsInput = {
-                performanceHistory,
-                previousGoal: userProfile?.learningGoals,
-            };
-            const { goal, nextAssignment } = await updateLearningGoalsAndCreateAssignment(agentInput);
-            
-            // Step 7: Update the user's profile with the new goal
-            const userDocRefToUpdate = doc(firestore, 'users', user.uid);
-            const userProfileUpdate = { learningGoals: goal.nextGoal };
-            await updateDoc(userDocRefToUpdate, userProfileUpdate)
-                .catch(error => {
-                    const permissionError = new FirestorePermissionError({
-                        path: userDocRefToUpdate.path,
-                        operation: 'update',
-                        requestResourceData: userProfileUpdate
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
                     throw permissionError;
                 });
-
-            // Step 8: Create the new scenario and assignment in Firestore
-            const newScenarioData = {
-                theme: 'Business/Real-world',
-                content: nextAssignment.scenario,
-                difficulty: goal.recommendedDifficulty,
-                dsaConcept: nextAssignment.dsaConcept,
-                createdAt: serverTimestamp(),
-                createdBy: 'SYSTEM',
-            };
-            const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), newScenarioData)
-                .catch(error => {
-                    const permissionError = new FirestorePermissionError({
-                        path: 'scenarios',
-                        operation: 'create',
-                        requestResourceData: newScenarioData
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw permissionError;
-                });
-            
-            // Generate a unique ID for the new assignment on the client
-            const newAssignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`));
-            const newAssignmentData = {
-                id: newAssignmentRef.id, // Use the generated ID
-                educatorId: 'SYSTEM',
-                scenarioId: newScenarioRef.id,
-                studentId: user.uid,
-                dueDate: addDays(new Date(), 7),
-                status: 'assigned' as const,
-                createdAt: serverTimestamp(),
-                dsaConcept: nextAssignment.dsaConcept,
-                isAutonomouslyGenerated: true,
-            };
-            
-            await setDoc(newAssignmentRef, newAssignmentData)
-                .catch(error => {
-                    const permissionError = new FirestorePermissionError({
-                        path: newAssignmentRef.path,
-                        operation: 'create',
-                        requestResourceData: newAssignmentData
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw permissionError;
-                });
-
-            // Create hints for the new scenario
-            const hintsCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'hints');
-            for (const [index, hintContent] of nextAssignment.hints.entries()) {
-                 addDoc(hintsCollection, { hintLevel: index + 1, content: hintContent }).catch(error => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `scenarios/${newScenarioRef.id}/hints`,
-                        operation: 'create',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
             }
-
-            // Create test cases for the new scenario
-            const testCasesCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'testCases');
-            for (const testCase of nextAssignment.testCases) {
-                addDoc(testCasesCollection, testCase).catch(error => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `scenarios/${newScenarioRef.id}/testCases`,
-                        operation: 'create',
-                        requestResourceData: testCase
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-            }
-
-            toast({
-                title: `Assessment Complete! Score: ${assessmentResult.score}%`,
-                description: "Check the results and your new study plan.",
-            });
+            
+            // Redirect user to dashboard after submission.
+            router.push('/dashboard');
 
         } catch (error) {
              if (!(error instanceof FirestorePermissionError)) {
@@ -329,57 +211,11 @@ export default function AssignmentPage() {
         );
     }
 
+    const isSubmitted = assignmentData.status === 'submitted';
     const isCompleted = assignmentData.status === 'completed';
 
     return (
         <div className="container mx-auto max-w-4xl py-8">
-            <Dialog open={!!submissionResult} onOpenChange={(open) => !open && handleCloseDialog()}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-headline">Submission Results</DialogTitle>
-                         <DialogDescription>
-                            Great work! Here's your feedback and your next steps.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {submissionResult && (
-                         <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
-                             <div className="text-center">
-                                <p className="text-lg text-muted-foreground">You scored</p>
-                                <p className="text-6xl font-bold text-primary">{submissionResult.assessment.score}%</p>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <h4 className="font-semibold mb-2 text-lg">AI Feedback:</h4>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{submissionResult.assessment.feedback}</p>
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold mb-2 text-lg">Your Submitted Code:</h4>
-                                    <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{solutionCode}</code></pre>
-                                </div>
-                            </div>
-                           
-                            <div className="p-4 rounded-lg border bg-card-background mt-4">
-                                 <h3 className="flex items-center gap-3 text-xl font-semibold mb-3 font-headline"><Target className="text-primary"/> Your New Study Plan</h3>
-                                 <p className="text-muted-foreground mb-4 text-sm">{submissionResult.studyPlan.intro}</p>
-                                 <ul className="space-y-3">
-                                    {submissionResult.studyPlan.topics.map((topic, index) => (
-                                        <li key={index} className="p-3 bg-background rounded-lg border">
-                                            <h4 className="font-bold">{topic.dsaConcept}</h4>
-                                            <p className="text-muted-foreground text-sm">{topic.recommendation}</p>
-                                        </li>
-                                    ))}
-                                 </ul>
-                            </div>
-                         </div>
-                    )}
-                    <Button onClick={handleCloseDialog} className="mt-4">
-                        Back to Dashboard
-                    </Button>
-                </DialogContent>
-            </Dialog>
-
-
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-start">
@@ -455,19 +291,27 @@ export default function AssignmentPage() {
                     </Accordion>
 
 
-                    {isCompleted ? (
+                    {isCompleted || isSubmitted ? (
                          <Alert>
-                            <AlertTitle className="font-headline text-xl">Assignment Already Completed</AlertTitle>
+                            <AlertTitle className="font-headline text-xl">
+                               {isCompleted ? 'Assignment Completed' : 'Assignment Submitted'}
+                            </AlertTitle>
                             <AlertDescription className="space-y-4">
-                                <p>You have already submitted a solution for this assignment and received a score of <strong>{assignmentData.score}%</strong>.</p>
-                                <div>
-                                    <h4 className="font-semibold mb-2">Your Submitted Code:</h4>
-                                    <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignmentData.solutionCode}</code></pre>
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold mb-2">AI Feedback:</h4>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignmentData.feedback}</p>
-                                </div>
+                               {isCompleted ? (
+                                <>
+                                   <p>You have already completed this assignment and received a score of <strong>{assignmentData.score}%</strong>.</p>
+                                    <div>
+                                        <h4 className="font-semibold mb-2">Your Submitted Code:</h4>
+                                        <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignmentData.solutionCode}</code></pre>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold mb-2">AI Feedback:</h4>
+                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignmentData.feedback}</p>
+                                    </div>
+                                </>
+                               ) : (
+                                <p>Your submission is awaiting review from your educator. Your score and feedback will appear here once published.</p>
+                               )}
                                  <Button onClick={() => router.push('/dashboard')} className="mt-4">Back to Dashboard</Button>
                             </AlertDescription>
                         </Alert>
@@ -490,12 +334,12 @@ export default function AssignmentPage() {
                                 {isSubmitting ? (
                                     <>
                                         <Loader className="mr-2 h-4 w-4 animate-spin"/>
-                                        Assessing & Updating Your Path...
+                                        Submitting for Review...
                                     </>
                                 ) : (
                                     <>
                                         <Send className="mr-2 h-4 w-4" />
-                                        Submit and Assess
+                                        Submit for Review
                                     </>
                                 )}
                             </Button>

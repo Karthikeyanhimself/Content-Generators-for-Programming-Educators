@@ -3,19 +3,20 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/firebase';
-import { collection, doc, orderBy, query } from 'firebase/firestore';
+import { collection, doc, orderBy, query, updateDoc } from 'firebase/firestore';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel, AlertDialogFooter, AlertDialogTrigger, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardLayout({
   children,
@@ -27,7 +28,9 @@ export default function DashboardLayout({
   const firestore = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
+  const [isPublishing, setIsPublishing] = useState<string | null>(null);
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -36,7 +39,6 @@ export default function DashboardLayout({
   
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<any>(userDocRef);
 
-  // Fetch submissions only if the user is an educator and the profile is loaded
   const submissionsQuery = useMemoFirebase(
     () =>
       user && userProfile?.role === 'educator'
@@ -45,7 +47,7 @@ export default function DashboardLayout({
             orderBy('submittedAt', 'desc')
           )
         : null,
-    [firestore, user, userProfile] // Added userProfile to dependency array
+    [firestore, user, userProfile]
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
@@ -62,6 +64,42 @@ export default function DashboardLayout({
     }
   };
 
+  const handlePublishScore = async (submission: any) => {
+    if (!firestore || !submission) return;
+    setIsPublishing(submission.id);
+
+    try {
+      // 1. Update the student's original assignment document
+      const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
+      await updateDoc(studentAssignmentRef, {
+        score: submission.score,
+        feedback: submission.feedback,
+        status: 'completed',
+      });
+
+      // 2. Update the denormalized submission record to mark it as published
+      const educatorSubmissionRef = doc(firestore, `educators/${user!.uid}/submissions/${submission.id}`);
+      await updateDoc(educatorSubmissionRef, {
+        isPublished: true,
+      });
+
+      toast({
+        title: 'Score Published!',
+        description: `${submission.studentName} can now see their results.`,
+      });
+    } catch (error) {
+      console.error('Error publishing score:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Publishing Failed',
+        description: 'Could not publish the score. Please check permissions and try again.',
+      });
+    } finally {
+      setIsPublishing(null);
+    }
+  };
+
+
   const isLoading = !isClient || isUserLoading || isProfileLoading;
 
   if (isLoading) {
@@ -76,8 +114,6 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    // This case is handled by the useEffect redirect, but it's good practice
-    // to have a guard here.
     return null;
   }
 
@@ -141,7 +177,7 @@ export default function DashboardLayout({
                                             <ScrollArea className="max-h-[50vh]">
                                                 <div className="space-y-4 p-1">
                                                     <div>
-                                                        <h4 className="font-semibold mb-2">Score: {sub.score}%</h4>
+                                                        <h4 className="font-semibold mb-2">AI-Assessed Score: {sub.score}%</h4>
                                                         <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{sub.feedback}</p>
                                                     </div>
                                                     <div>
@@ -152,6 +188,13 @@ export default function DashboardLayout({
                                             </ScrollArea>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Close</AlertDialogCancel>
+                                                {!sub.isPublished ? (
+                                                    <Button onClick={() => handlePublishScore(sub)} disabled={isPublishing === sub.id}>
+                                                        {isPublishing === sub.id ? 'Publishing...' : <><Send className="mr-2 h-4 w-4" /> Publish Score</>}
+                                                    </Button>
+                                                ) : (
+                                                    <Button disabled>Already Published</Button>
+                                                )}
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
@@ -207,3 +250,5 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
+
+    

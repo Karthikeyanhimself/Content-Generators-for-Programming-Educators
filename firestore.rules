@@ -80,33 +80,31 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to assignment documents. Assignments are owned by the user (student or educator for drafts).
+     * @description Controls access to assignment documents.
      */
     match /users/{userId}/assignments/{assignmentId} {
-       function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-      
-      // An educator can create an assignment in a student's subcollection.
-      function isEducatorCreatingForStudent(userId) {
-         return request.auth != null && request.auth.uid != userId && isStudentInEducatorRoster(userId);
-      }
-
+      // READ: A user can only read their own assignments.
       allow get, list: if isOwner(userId);
-      // A user can create an assignment for themselves (student taking autonomous, or educator making draft)
-      allow create: if (isOwner(userId) && request.resource.data.studentId == userId) || 
-                       (isOwner(userId) && request.resource.data.educatorId == userId) ||
-                       // An educator assigning to a student they manage
-                       isEducatorCreatingForStudent(userId);
       
-      allow update: if isExistingOwner(userId) && resource.data.studentId == userId;
-      allow delete: if isExistingOwner(userId);
+      // CREATE:
+      // 1. A user can create their own assignment (student self-assigning, educator drafting).
+      // 2. An educator can create an assignment for a student in their roster.
+      allow create: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      
+      // UPDATE:
+      // A student can update their own assignment (e.g., to submit it).
+      // An educator can update a student's assignment (e.g., to publish a score).
+      allow update: if isOwner(userId) || isStudentInEducatorRoster(userId);
+
+      // DELETE: Only the owner can delete their assignments.
+      allow delete: if isOwner(userId);
     }
 
     /**
      * @description Denormalized submissions for easy educator querying.
      * - An educator can read/list their own submissions.
      * - A student can create a submission record only if the educatorId matches the one on their original assignment.
+     * - An educator can update a submission record (e.g. to mark as published).
      */
     match /educators/{educatorId}/submissions/{submissionId} {
       allow read, list: if isOwner(educatorId);
@@ -121,7 +119,8 @@ service cloud.firestore {
       }
 
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
-      allow update, delete: if false;
+      allow update: if isOwner(educatorId); // Educator can update (e.g., to publish)
+      allow delete: if false;
     }
 
 
