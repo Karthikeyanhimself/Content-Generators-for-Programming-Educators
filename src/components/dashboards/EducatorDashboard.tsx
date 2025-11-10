@@ -30,7 +30,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -64,8 +64,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '../ui/command';
-import { ScrollArea } from '../ui/scroll-area';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+
 
 const dsaConcepts = {
   "Common Patterns": [
@@ -137,7 +137,6 @@ export default function EducatorDashboard() {
   const [studentEmail, setStudentEmail] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
-  const [open, setOpen] = useState(false);
 
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
@@ -332,8 +331,14 @@ export default function EducatorDashboard() {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied to clipboard!' });
   };
-
-  const allConcepts = Object.values(dsaConcepts).flat();
+  
+  const handleConceptSelection = (concept: string) => {
+    setSelectedConcepts(prev => 
+      prev.includes(concept)
+        ? prev.filter(item => item !== concept)
+        : [...prev, concept]
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
@@ -374,56 +379,35 @@ export default function EducatorDashboard() {
 
                   <div className="space-y-2">
                     <Label>DSA Concept(s)</Label>
-                    <Popover open={open} onOpenChange={setOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={open}
-                                className="w-full justify-between h-auto"
-                            >
-                                <div className="flex gap-1 flex-wrap">
-                                    {selectedConcepts.length > 0 ? selectedConcepts.map((concept) => (
-                                        <Badge variant="secondary" key={concept}>{concept}</Badge>
-                                    )) : "Select concepts..."}
-                                </div>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                                <CommandInput placeholder="Search concepts..." />
-                                <CommandEmpty>No concept found.</CommandEmpty>
-                                <ScrollArea className="h-72">
-                                <CommandGroup>
-                                    {allConcepts.map((concept) => (
-                                        <CommandItem
-                                            key={concept}
-                                            value={concept}
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setSelectedConcepts(prev => 
-                                                    prev.includes(concept)
-                                                    ? prev.filter(item => item !== concept)
-                                                    : [...prev, concept]
-                                                );
-                                            }}
-                                        >
-                                            <Check
-                                                className={cn(
-                                                    "mr-2 h-4 w-4",
-                                                    selectedConcepts.includes(concept) ? "opacity-100" : "opacity-0"
-                                                )}
-                                            />
-                                            {concept}
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </ScrollArea>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal">
+                           <div className="flex gap-1 flex-wrap">
+                              {selectedConcepts.length > 0 ? selectedConcepts.map((concept) => (
+                                  <Badge variant="secondary" key={concept}>{concept}</Badge>
+                              )) : "Select concepts..."}
+                          </div>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
+                        {Object.entries(dsaConcepts).map(([group, concepts], index) => (
+                          <DropdownMenuGroup key={group}>
+                            <DropdownMenuLabel>{group}</DropdownMenuLabel>
+                            {concepts.map(concept => (
+                               <DropdownMenuCheckboxItem
+                                key={concept}
+                                checked={selectedConcepts.includes(concept)}
+                                onCheckedChange={() => handleConceptSelection(concept)}
+                                onSelect={(e) => e.preventDefault()} // Prevent closing on select
+                              >
+                                {concept}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                            {index < Object.keys(dsaConcepts).length - 1 && <DropdownMenuSeparator />}
+                          </DropdownMenuGroup>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   <div className="space-y-2">
