@@ -55,7 +55,8 @@ import {
   getDoc,
   doc,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  FirestoreError
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
@@ -356,71 +357,81 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
   
     try {
-      const emailLookupSnap = await getDoc(emailLookupRef);
+        const emailLookupSnap = await getDoc(emailLookupRef);
   
-      if (!emailLookupSnap.exists()) {
+        if (!emailLookupSnap.exists()) {
+            toast({
+              variant: 'destructive',
+              title: 'Student Not Found',
+              description: 'No student account exists for this email. Please ask them to sign up first.',
+            });
+            return;
+        }
+  
+        const { uid: studentUid } = emailLookupSnap.data();
+        const studentUserRef = doc(firestore, 'users', studentUid);
+        const studentUserSnap = await getDoc(studentUserRef);
+  
+        if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
+            toast({
+              variant: 'destructive',
+              title: 'Not a Student Account',
+              description: 'The user with this email is not registered as a student.',
+            });
+            return;
+        }
+  
+        const studentData = studentUserSnap.data();
+        const rosterData = {
+            uid: studentUid,
+            email: studentData.email,
+            firstName: studentData.firstName,
+            lastName: studentData.lastName,
+            addedAt: serverTimestamp(),
+        };
+  
+        const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
+        await setDoc(rosterRef, rosterData);
+  
         toast({
-          variant: 'destructive',
-          title: 'Student Not Found',
-          description: 'No student account exists for this email address. Please ask them to sign up first.',
+            title: 'Student Added!',
+            description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
         });
-        setIsAddingStudent(false);
-        return;
-      }
+        setNewStudentEmail('');
   
-      const { uid: studentUid } = emailLookupSnap.data();
-      const studentUserRef = doc(firestore, 'users', studentUid);
-      const studentUserSnap = await getDoc(studentUserRef);
-  
-      if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
-        toast({
-          variant: 'destructive',
-          title: 'Not a Student Account',
-          description: 'The user with this email is not registered as a student.',
-        });
-        setIsAddingStudent(false);
-        return;
-      }
-  
-      const studentData = studentUserSnap.data();
-      const rosterData = {
-        uid: studentUid,
-        email: studentData.email,
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-        addedAt: serverTimestamp(),
-      };
-  
-      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, rosterData);
-  
-      toast({
-        title: 'Student Added!',
-        description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
-      });
-      setNewStudentEmail('');
-  
-    } catch (error: any) {
-      console.error('Error during handleAddStudent:', error);
-  
-      // This is the crucial part: check if it's a permission error
-      // and emit it for the global error handler to pick up.
-      if (error.code === 'permission-denied') {
-        const contextualError = new FirestorePermissionError({
-          operation: 'get',
-          path: emailLookupRef.path,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-      } else {
-        // Handle other errors, like network issues
-        toast({
-          variant: 'destructive',
-          title: 'An Unexpected Error Occurred',
-          description: error.message || 'Could not add the student. Please try again later.',
-        });
-      }
+    } catch (error) {
+        const firestoreError = error as FirestoreError;
+        console.error('Error adding student:', firestoreError);
+
+        let operation: 'get' | 'write' = 'get';
+        let path = emailLookupRef.path;
+
+        // This logic is a bit of a guess, but if the code is 'permission-denied',
+        // it's likely one of the getDoc calls. We assume the last one failed.
+        if (firestoreError.code === 'permission-denied') {
+             // Let's assume the error is on reading the user profile if the email lookup was successful
+            try {
+                await getDoc(emailLookupRef); // Re-check email lookup
+                path = doc(firestore, 'users', 'some-uid').path; // Placeholder for student user ref
+            } catch (e) {
+                // The error was on the email lookup itself.
+                path = emailLookupRef.path;
+            }
+
+            const contextualError = new FirestorePermissionError({
+                operation: 'get',
+                path: path,
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Error Adding Student',
+                description: firestoreError.message || 'An unexpected error occurred.',
+            });
+        }
     } finally {
-      setIsAddingStudent(false);
+        setIsAddingStudent(false);
     }
   };
 

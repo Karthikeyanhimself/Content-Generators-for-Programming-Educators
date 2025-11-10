@@ -21,17 +21,16 @@ import { doc, setDoc, Firestore } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-const initiateStudentSeed = (firestore: Firestore) => {
+const initiateStudentSeed = async (firestore: Firestore) => {
     const students = [
         { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
         { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
     ];
 
-    students.forEach(student => {
+    for (const student of students) {
         // Create user profile document for the sample student
         const userDocRef = doc(firestore, `users/${student.uid}`);
-        // Use standard setDoc for this background task.
-        setDoc(userDocRef, {
+        await setDoc(userDocRef, {
             id: student.uid,
             email: student.email,
             role: 'student',
@@ -41,12 +40,12 @@ const initiateStudentSeed = (firestore: Firestore) => {
             learningGoals: 'Learn DSA for interviews',
             preferredProgrammingLanguages: ['Python', 'JavaScript'],
             hasCompletedAssessment: true, // Assume they are existing students
-        }, { merge: true });
+        });
 
         // Create the necessary email lookup document for the sample student
         const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
-        setDoc(emailDocRef, { uid: student.uid });
-    });
+        await setDoc(emailDocRef, { uid: student.uid });
+    }
 };
 
 
@@ -77,49 +76,54 @@ export default function SignupPage() {
   useEffect(() => {
     // This effect runs when the user object is available after signup.
     // It creates the user document in Firestore.
-    if (user && isSubmitting) {
-      const [firstName, ...lastNameParts] = fullName.split(' ');
-      const lastName = lastNameParts.join(' ');
+    const createUserProfile = async () => {
+        if (user && isSubmitting && firestore) {
+          const [firstName, ...lastNameParts] = fullName.split(' ');
+          const lastName = lastNameParts.join(' ');
 
-      const userRef = doc(firestore, 'users', user.uid);
-      const emailRef = doc(firestore, 'users-by-email', user.email!);
-      
-      let profileData: any = {
-        id: user.uid,
-        email: user.email,
-        role: role,
-        firstName: firstName,
-        lastName: lastName,
-      };
-      
-      if (role === 'student') {
-        profileData = {
-          ...profileData,
-          academicLevel,
-          learningGoals,
-          preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
-        };
-      } else if (role === 'educator') {
-        profileData = {
-          ...profileData,
-          subjectSpecialization: specialization,
-          yearsOfExperience: parseInt(experience, 10) || 0,
-          institution,
-        };
-        // For developer convenience, seed sample students when an educator signs up
-        if (firestore) {
-            initiateStudentSeed(firestore);
+          const userRef = doc(firestore, 'users', user.uid);
+          const emailRef = doc(firestore, 'users-by-email', user.email!);
+          
+          let profileData: any = {
+            id: user.uid,
+            email: user.email,
+            role: role,
+            firstName: firstName,
+            lastName: lastName,
+          };
+          
+          if (role === 'student') {
+            profileData = {
+              ...profileData,
+              academicLevel,
+              learningGoals,
+              preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
+            };
+          } else if (role === 'educator') {
+            profileData = {
+              ...profileData,
+              subjectSpecialization: specialization,
+              yearsOfExperience: parseInt(experience, 10) || 0,
+              institution,
+            };
+          }
+
+          // Use standard setDoc to ensure these critical writes complete.
+          await setDoc(userRef, profileData);
+          await setDoc(emailRef, { uid: user.uid });
+          
+          // For educator, seed sample students and wait for it to finish.
+          if (role === 'educator') {
+            await initiateStudentSeed(firestore);
+          }
+
+          // Redirect to dashboard after all data is saved.
+          router.push('/dashboard');
         }
-      }
+    };
+    
+    createUserProfile();
 
-      setDocumentNonBlocking(userRef, profileData, { merge: true });
-      // Create the email lookup document
-      setDocumentNonBlocking(emailRef, { uid: user.uid }, {});
-      
-      // Redirect to dashboard after setting document.
-      // Non-blocking nature means we don't wait for Firestore write to complete.
-      router.push('/dashboard');
-    }
   }, [user, isSubmitting, router, firestore, fullName, role, academicLevel, learningGoals, languages, specialization, experience, institution]);
 
   const handleSignup = async (e: React.FormEvent) => {
