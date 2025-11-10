@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -24,18 +25,44 @@ import { Slider } from '@/components/ui/slider';
 import {
   generateThemedScenario,
   GenerateThemedScenarioInput,
+  GenerateThemedScenarioOutput,
 } from '@/ai/flows/generate-themed-scenario';
-import { Loader } from 'lucide-react';
+import {
+  Loader,
+  Lightbulb,
+  FileCheck2,
+  ChevronDown,
+  Copy,
+} from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [theme, setTheme] = useState('Adventure/Fantasy');
   const [dsaConcept, setDsaConcept] = useState('Arrays');
   const [difficulty, setDifficulty] = useState([1]);
-  const [generatedScenario, setGeneratedScenario] = useState('');
+  const [generatedData, setGeneratedData] =
+    useState<GenerateThemedScenarioOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [revealedHints, setRevealedHints] = useState(0);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -43,24 +70,36 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const difficultyLabels = ['Easy', 'Medium', 'Hard'];
+
   const handleGenerate = async () => {
     setIsGenerating(true);
-    setGeneratedScenario('');
+    setGeneratedData(null);
+    setRevealedHints(0);
     try {
       const input: GenerateThemedScenarioInput = {
         theme: theme as any,
         dsaConcept,
+        difficulty: difficultyLabels[difficulty[0]] as any,
       };
       const result = await generateThemedScenario(input);
-      setGeneratedScenario(result.scenario);
+      setGeneratedData(result);
     } catch (error) {
       console.error('Error generating scenario:', error);
-      setGeneratedScenario(
-        'Sorry, there was an error generating the scenario. Please try again.'
-      );
+      toast({
+        variant: 'destructive',
+        title: 'Error Generating Scenario',
+        description:
+          'Sorry, there was an error generating the scenario. Please try again.',
+      });
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied to clipboard!' });
   };
 
   if (isUserLoading) {
@@ -74,8 +113,6 @@ export default function DashboardPage() {
   if (!user) {
     return null;
   }
-
-  const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
   return (
     <div className="container mx-auto px-4 py-8 pt-24">
@@ -161,6 +198,17 @@ export default function DashboardPage() {
           <Card className="h-full">
             <CardHeader>
               <CardTitle className="font-headline">Generated Scenario</CardTitle>
+              {generatedData && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-4 top-4"
+                  onClick={() => copyToClipboard(generatedData.scenario)}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {isGenerating ? (
@@ -176,11 +224,11 @@ export default function DashboardPage() {
                     <div className="h-4 w-5/6 rounded-full bg-muted animate-pulse"></div>
                   </div>
                 </div>
-              ) : generatedScenario ? (
+              ) : generatedData ? (
                 <div
                   className="prose prose-sm max-w-none text-card-foreground"
                   dangerouslySetInnerHTML={{
-                    __html: generatedScenario.replace(/\n/g, '<br />'),
+                    __html: generatedData.scenario.replace(/\n/g, '<br />'),
                   }}
                 />
               ) : (
@@ -189,6 +237,83 @@ export default function DashboardPage() {
                 </p>
               )}
             </CardContent>
+            {generatedData && (
+              <CardFooter className="flex-col items-start gap-4">
+                <Accordion type="multiple" className="w-full">
+                  <AccordionItem value="hints">
+                    <AccordionTrigger className="text-base font-medium">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="h-5 w-5" />
+                        Adaptive Hints
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="space-y-4">
+                        {generatedData.hints.map((hint, index) => (
+                          <div key={index}>
+                            {index < revealedHints ? (
+                              <p className="text-muted-foreground">{hint}</p>
+                            ) : (
+                              index === revealedHints && (
+                                <Button
+                                  onClick={() =>
+                                    setRevealedHints(revealedHints + 1)
+                                  }
+                                >
+                                  Reveal Hint {index + 1}
+                                </Button>
+                              )
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                  <AccordionItem value="test-cases">
+                    <AccordionTrigger className="text-base font-medium">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="h-5 w-5" />
+                        Smart Test Cases
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Input</TableHead>
+                            <TableHead>Output</TableHead>
+                            <TableHead>Explanation</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {generatedData.testCases.map((tc, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-mono text-xs">
+                                {tc.input}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {tc.output}
+                              </TableCell>
+                              <TableCell>
+                                {tc.isEdgeCase && (
+                                  <Badge
+                                    variant="outline"
+                                    className="mb-1 mr-2"
+                                  >
+                                    Edge Case
+                                  </Badge>
+                                )}
+                                {tc.explanation}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </CardFooter>
+            )}
           </Card>
         </div>
       </div>
