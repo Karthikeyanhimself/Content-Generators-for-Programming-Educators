@@ -399,10 +399,8 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       setNewStudentEmail('');
   
     } catch (error: any) {
-        const isPermissionError = error.code === 'permission-denied';
-
-        if (isPermissionError) {
-             const permissionError = new FirestorePermissionError({
+        if (error.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
                 path: `users-by-email/${newStudentEmail}`,
                 operation: 'get',
             });
