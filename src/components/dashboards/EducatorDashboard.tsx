@@ -25,7 +25,12 @@ import {
   GenerateThemedScenarioInput,
   GenerateThemedScenarioOutput,
 } from '@/ai/flows/generate-themed-scenario';
-import { Loader, Lightbulb, FileCheck2, Copy } from 'lucide-react';
+import {
+  suggestSolutionApproachTips,
+  SuggestSolutionApproachTipsInput,
+  SuggestSolutionApproachTipsOutput,
+} from '@/ai/flows/suggest-solution-approach-tips';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -48,9 +53,11 @@ export default function EducatorDashboard() {
 
   const [theme, setTheme] = useState('Adventure/Fantasy');
   const [dsaConcept, setDsaConcept] = useState('Arrays');
-  const [difficulty, setDifficulty] = useState([1]);
+  const [difficulty, setDifficulty] = useState(1);
   const [generatedData, setGeneratedData] =
     useState<GenerateThemedScenarioOutput | null>(null);
+  const [solutionTips, setSolutionTips] =
+    useState<SuggestSolutionApproachTipsOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
@@ -59,14 +66,23 @@ export default function EducatorDashboard() {
     e?.preventDefault();
     setIsGenerating(true);
     setGeneratedData(null);
+    setSolutionTips(null);
     try {
       const input: GenerateThemedScenarioInput = {
         theme: theme as any,
         dsaConcept,
-        difficulty: difficultyLabels[difficulty[0]] as any,
+        difficulty: difficultyLabels[difficulty] as any,
       };
       const result = await generateThemedScenario(input);
       setGeneratedData(result);
+
+      // Now, generate solution tips
+      const tipsInput: SuggestSolutionApproachTipsInput = {
+        scenario: result.scenario,
+        difficulty: difficultyLabels[difficulty],
+      };
+      const tipsResult = await suggestSolutionApproachTips(tipsInput);
+      setSolutionTips(tipsResult);
     } catch (error) {
       console.error('Error generating scenario:', error);
       toast({
@@ -133,15 +149,15 @@ export default function EducatorDashboard() {
               <div className="flex items-center justify-between">
                 <Label>Difficulty</Label>
                 <span className="text-sm font-medium text-muted-foreground">
-                  {difficultyLabels[difficulty[0]]}
+                  {difficultyLabels[difficulty]}
                 </span>
               </div>
               <Slider
                 min={0}
                 max={2}
                 step={1}
-                value={difficulty}
-                onValueChange={setDifficulty}
+                defaultValue={[difficulty]}
+                onValueChange={(value) => setDifficulty(value[0])}
               />
             </div>
           </CardContent>
@@ -208,72 +224,97 @@ export default function EducatorDashboard() {
               </p>
             )}
           </CardContent>
-          {generatedData && (
+          {(generatedData || solutionTips) && (
             <CardFooter className="flex-col items-start gap-4">
               <Accordion type="multiple" className="w-full">
-                <AccordionItem value="hints">
-                  <AccordionTrigger className="text-lg font-medium">
-                    <div className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5" />
-                      Adaptive Hints
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-4">
-                    <div className="space-y-4">
-                      {generatedData.hints.map((hint, index) => (
-                        <div key={index} className="p-4 bg-background/50 rounded-md border">
-                          <p className="text-muted-foreground">{hint}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="test-cases">
-                  <AccordionTrigger className="text-lg font-medium">
-                    <div className="flex items-center gap-2">
-                      <FileCheck2 className="h-5 w-5" />
-                      Smart Test Cases
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-4">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Input</TableHead>
-                          <TableHead>Output</TableHead>
-                          <TableHead>Explanation</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {generatedData.testCases.map((tc, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-mono text-xs">
-                              {tc.input}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">
-                              {tc.output}
-                            </TableCell>
-                            <TableCell>
-                              {tc.isEdgeCase && (
-                                <Badge
-                                  variant="outline"
-                                  className="mb-1 mr-2 border-amber-500 text-amber-500"
-                                >
-                                  Edge Case
-                                </Badge>
-                              )}
-                              {tc.explanation}
-                            </TableCell>
-                          </TableRow>
+                {solutionTips && (
+                  <AccordionItem value="solution-tips">
+                    <AccordionTrigger className="text-lg font-medium">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5" />
+                        Approach Tips
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <ul className="space-y-3 list-disc pl-5">
+                        {solutionTips.tips.map((tip, index) => (
+                          <li key={index} className="text-muted-foreground">
+                            {tip}
+                          </li>
                         ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                {generatedData && (
+                  <>
+                    <AccordionItem value="hints">
+                      <AccordionTrigger className="text-lg font-medium">
+                        <div className="flex items-center gap-2">
+                          <Lightbulb className="h-5 w-5" />
+                          Adaptive Hints
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <div className="space-y-4">
+                          {generatedData.hints.map((hint, index) => (
+                            <div key={index} className="p-4 bg-background/50 rounded-md border">
+                              <p className="text-muted-foreground">{hint}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="test-cases">
+                      <AccordionTrigger className="text-lg font-medium">
+                        <div className="flex items-center gap-2">
+                          <FileCheck2 className="h-5 w-5" />
+                          Smart Test Cases
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Input</TableHead>
+                              <TableHead>Output</TableHead>
+                              <TableHead>Explanation</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {generatedData.testCases.map((tc, index) => (
+                              <TableRow key={index}>
+                                <TableCell className="font-mono text-xs">
+                                  {tc.input}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {tc.output}
+                                </TableCell>
+                                <TableCell>
+                                  {tc.isEdgeCase && (
+                                    <Badge
+                                      variant="outline"
+                                      className="mb-1 mr-2 border-amber-500 text-amber-500"
+                                    >
+                                      Edge Case
+                                    </Badge>
+                                  )}
+                                  {tc.explanation}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </>
+                )}
               </Accordion>
-               <div className="w-full pt-4">
-                  <Button className='w-full' size="lg">Create Assignment from Scenario</Button>
-              </div>
+               {generatedData && (
+                <div className="w-full pt-4">
+                    <Button className='w-full' size="lg">Create Assignment from Scenario</Button>
+                </div>
+               )}
             </CardFooter>
           )}
         </Card>

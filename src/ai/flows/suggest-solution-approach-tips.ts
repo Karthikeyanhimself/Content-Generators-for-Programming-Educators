@@ -8,7 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const SuggestSolutionApproachTipsInputSchema = z.object({
   scenario: z.string().describe('The programming scenario for which to provide tips.'),
