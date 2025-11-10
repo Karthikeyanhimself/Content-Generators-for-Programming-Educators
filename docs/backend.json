@@ -113,41 +113,21 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Assignment",
       "type": "object",
-      "description": "Represents an assignment given to a student.",
+      "description": "Represents an assignment given to a student, including their submission.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the assignment."
-        },
-        "educatorId": {
-          "type": "string",
-          "description": "Reference to the Educator who created the assignment. (Relationship: Educator 1:N Assignment)"
-        },
-        "studentId": {
-          "type": "string",          "description": "Reference to the Student assigned to the assignment. (Relationship: Student 1:N Assignment)"
-        },
-        "scenarioId": {
-          "type": "string",
-          "description": "Reference to the Scenario used in the assignment. (Relationship: Scenario 1:N Assignment)"
-        },
-        "dueDate": {
-          "type": "string",
-          "description": "Due date for the assignment.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "Status of the assignment (e.g., Assigned, In Progress, Completed)."
-        }
+        "id": { "type": "string", "description": "Unique identifier for the assignment." },
+        "educatorId": { "type": "string", "description": "ID of the Educator who created the assignment." },
+        "studentId": { "type": "string", "description": "ID of the Student assigned." },
+        "scenarioId": { "type": "string", "description": "ID of the Scenario used." },
+        "dueDate": { "type": "string", "format": "date-time", "description": "Due date for the assignment." },
+        "status": { "type": "string", "description": "Status (e.g., Assigned, In Progress, Completed).", "enum": ["assigned", "completed", "draft"] },
+        "dsaConcept": { "type": "string", "description": "The primary DSA concept for the assignment." },
+        "solutionCode": { "type": "string", "description": "The code submitted by the student." },
+        "score": { "type": "number", "description": "The score (0-100) from AI assessment." },
+        "feedback": { "type": "string", "description": "AI-generated feedback on the submission." },
+        "submittedAt": { "type": "string", "format": "date-time", "description": "Timestamp of submission." }
       },
-      "required": [
-        "id",
-        "educatorId",
-        "studentId",
-        "scenarioId",
-        "dueDate",
-        "status"
-      ]
+      "required": [ "id", "educatorId", "studentId", "scenarioId", "dueDate", "status" ]
     },
     "Hint": {
       "$schema": "http://json-schema.org/draft-07/schema#",

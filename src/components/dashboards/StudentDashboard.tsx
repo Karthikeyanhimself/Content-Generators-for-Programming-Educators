@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -27,6 +28,18 @@ import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebas
 import { collection, orderBy, query } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ScrollArea } from '../ui/scroll-area';
 
 type Answer = {
   question: string;
@@ -360,7 +373,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                             {assignments.map((assignment: any) => (
                                 <Card key={assignment.id}>
                                     <CardHeader>
-                                        <CardTitle className="text-xl">New Assignment</CardTitle>
+                                        <CardTitle className="text-xl">{assignment.dsaConcept}</CardTitle>
                                         <CardDescription>from Educator</CardDescription>
                                     </CardHeader>
                                     <CardContent className="space-y-2">
@@ -372,9 +385,48 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                             <span className="text-muted-foreground">Status</span>
                                             <Badge variant={assignment.status === 'assigned' ? 'default' : 'secondary'}>{assignment.status}</Badge>
                                         </div>
+                                        {assignment.status === 'completed' && (
+                                             <div className="flex items-center justify-between text-sm font-medium pt-2">
+                                                <span className="text-muted-foreground">Score</span>
+                                                <span className={assignment.score > 75 ? "text-green-500" : "text-amber-500"}>{assignment.score}%</span>
+                                            </div>
+                                        )}
                                     </CardContent>
                                     <CardFooter>
-                                        <Button className="w-full" disabled={assignment.status !== 'assigned'}>Start Assignment</Button>
+                                        {assignment.status === 'assigned' ? (
+                                            <Button className="w-full" asChild>
+                                                <Link href={`/dashboard/assignment/${assignment.id}`}>Start Assignment</Link>
+                                            </Button>
+                                        ) : (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button className="w-full" variant="outline">View Submission</Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent className="max-w-2xl">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Your Submission for: {assignment.dsaConcept}</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                           Submitted on {assignment.submittedAt ? format(assignment.submittedAt.toDate(), 'PPP') : ''}
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <ScrollArea className="max-h-[50vh]">
+                                                        <div className="space-y-4 p-1">
+                                                            <div>
+                                                                <h4 className="font-semibold mb-2">Your Score: {assignment.score}%</h4>
+                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignment.feedback}</p>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-semibold mb-2">Your Code:</h4>
+                                                                <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignment.solutionCode}</code></pre>
+                                                            </div>
+                                                        </div>
+                                                    </ScrollArea>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Close</AlertDialogCancel>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
                                     </CardFooter>
                                 </Card>
                             ))}
@@ -398,3 +450,5 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
+
+    

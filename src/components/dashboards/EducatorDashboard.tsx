@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -28,7 +28,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2 } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, GraduationCap } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -56,7 +56,9 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  FirestoreError
+  getDocs,
+  where,
+  collectionGroup
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
@@ -160,6 +162,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   // Roster State
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+
+  // Submissions State
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
   
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
@@ -186,6 +192,65 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     [firestore, user]
   );
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
+
+   // Effect to fetch all submissions from all students in the roster
+  useEffect(() => {
+    if (!user || !firestore || !students) {
+      setIsLoadingSubmissions(false);
+      return;
+    };
+
+    const fetchSubmissions = async () => {
+      setIsLoadingSubmissions(true);
+      try {
+        if (students.length === 0) {
+          setSubmissions([]);
+          return;
+        }
+
+        const studentIds = students.map((s: any) => s.uid);
+        const submissionsQuery = query(
+          collectionGroup(firestore, 'assignments'),
+          where('studentId', 'in', studentIds),
+          where('status', '==', 'completed'),
+          where('educatorId', '==', user.uid),
+          orderBy('submittedAt', 'desc')
+        );
+
+        const querySnapshot = await getDocs(submissionsQuery);
+        const fetchedSubmissions: any[] = [];
+        const studentDataMap = new Map();
+
+        // Pre-fetch all student data to avoid multiple reads inside loop
+        for (const student of students) {
+          studentDataMap.set(student.uid, student);
+        }
+
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          const studentInfo = studentDataMap.get(data.studentId);
+          fetchedSubmissions.push({
+            id: doc.id,
+            ...data,
+            studentName: studentInfo ? `${studentInfo.firstName} ${studentInfo.lastName}` : 'Unknown Student',
+          });
+        });
+
+        setSubmissions(fetchedSubmissions);
+      } catch (error) {
+        console.error("Error fetching submissions: ", error);
+        toast({
+          variant: 'destructive',
+          title: 'Could not load submissions',
+          description: 'There was a problem fetching student assignment data.'
+        });
+      } finally {
+        setIsLoadingSubmissions(false);
+      }
+    };
+
+    fetchSubmissions();
+  }, [user, firestore, students, toast]);
 
 
   const handleGenerate = async (e?: React.FormEvent) => {
@@ -270,15 +335,16 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       }
       
       const assignmentRef = doc(collection(firestore, `users/${user.uid}/assignments`));
-
-      await setDoc(assignmentRef, {
+      
+      const draftAssignment = {
         id: assignmentRef.id,
         educatorId: user.uid,
         scenarioId: scenarioRef.id,
         dsaConcept: generatedData.dsaConcept,
         status: 'draft', 
         createdAt: serverTimestamp(),
-      });
+      };
+      await setDoc(assignmentRef, draftAssignment);
 
 
       toast({
@@ -308,7 +374,9 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     try {
         const assignmentPromises = studentsToAssign.map(studentId => {
             const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
-            return addDoc(studentAssignmentsCollection, {
+            const newAssignmentRef = doc(studentAssignmentsCollection);
+            return setDoc(newAssignmentRef, {
+                id: newAssignmentRef.id,
                 educatorId: user.uid,
                 scenarioId: assigningAssignment.scenarioId,
                 studentId: studentId,
@@ -333,11 +401,22 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
     } catch (error: any) {
         console.error('Error assigning assignment:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Assignment Failed',
-            description: error.message || 'Could not assign the scenario. Please check permissions and try again.'
-        });
+        if (error.code === 'permission-denied') {
+             errorEmitter.emit(
+                'permission-error',
+                new FirestorePermissionError({
+                    path: `users/[studentId]/assignments`,
+                    operation: 'create',
+                    requestResourceData: { educatorId: user.uid, scenarioId: assigningAssignment.scenarioId },
+                })
+             );
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Assignment Failed',
+                description: error.message || 'Could not assign the scenario. Please check permissions and try again.'
+            });
+        }
     } finally {
         setIsAssigning(false);
     }
@@ -365,22 +444,11 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       const { uid: studentUid } = emailLookupSnap.data();
 
-      // 2. Add student to educator's roster subcollection (this is the trigger for the security rule)
-      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, {
-          uid: studentUid,
-          email: newStudentEmail,
-          addedAt: serverTimestamp(),
-          // We will fetch the name in the next step
-      });
-      
-      // 3. NOW, we have permission to read the student's main profile
+      // 2. Fetch the student's main profile to check their role and get their name
       const studentUserRef = doc(firestore, 'users', studentUid);
       const studentUserSnap = await getDoc(studentUserRef);
       
       if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
-        // This is an unlikely edge case, but good to handle
-        await deleteDoc(rosterRef); // Clean up the roster entry
         toast({
           variant: 'destructive',
           title: 'Not a Student Account',
@@ -389,12 +457,16 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
         setIsAddingStudent(false);
         return;
       }
-
+      
       const studentData = studentUserSnap.data();
-
-      // 4. Update the roster entry with the student's full name
+      
+      // 3. Add student to educator's roster subcollection. This document now contains all info needed.
+      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
       await setDoc(rosterRef, {
-        ...studentData,
+        uid: studentUid,
+        email: studentData.email,
+        firstName: studentData.firstName,
+        lastName: studentData.lastName,
         addedAt: serverTimestamp()
       }, { merge: true });
 
@@ -404,22 +476,24 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       });
       setNewStudentEmail('');
 
-    } catch (error) {
-      console.error("Error adding student:", error);
-      if (error instanceof FirestoreError && error.code === 'permission-denied') {
-          // This will now properly trigger the detailed error overlay
-          const permissionError = new FirestorePermissionError({
-              operation: 'get',
-              path: `users-by-email/${newStudentEmail}`, // Or another relevant path
-          });
-          errorEmitter.emit('permission-error', permissionError);
-      } else {
-          toast({
-              variant: 'destructive',
-              title: 'Error Adding Student',
-              description: (error as Error).message || 'An unexpected error occurred. Please check the console.',
-          });
-      }
+    } catch (error: any) {
+        console.error("Error adding student:", error);
+         if (error.code === 'permission-denied') {
+             // This is a more robust way to emit the error for debugging
+             errorEmitter.emit(
+                'permission-error',
+                new FirestorePermissionError({
+                    path: error.customData?.path || `users-by-email/${newStudentEmail}`,
+                    operation: 'get',
+                })
+             );
+         } else {
+            toast({
+                variant: 'destructive',
+                title: 'Error Adding Student',
+                description: 'An unexpected error occurred. Check the console for details.',
+            });
+         }
     } finally {
         setIsAddingStudent(false);
     }
@@ -768,168 +842,214 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       </div>
 
       <div className="md:col-span-8 lg:col-span-9">
-        <Card className="min-h-[600px] sticky top-24">
-          <CardHeader>
-            <CardTitle className="font-headline">Generated Scenario</CardTitle>
-            {generatedData && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-4 top-4"
-                onClick={() => copyToClipboard(generatedData.scenario)}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Copy
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            {isGenerating ? (
-              <div className="space-y-6 pt-4">
-                <div className="space-y-3">
-                  <div className="h-5 w-3/4 rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-5/6 rounded-full bg-muted animate-pulse"></div>
-                </div>
-                <div className="space-y-3">
-                  <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-1/2 rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-4/5 rounded-full bg-muted animate-pulse"></div>
-                </div>
-              </div>
-            ) : generatedData ? (
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none text-foreground"
-                dangerouslySetInnerHTML={{
-                  __html: generatedData.scenario.replace(/\n/g, '<br />'),
-                }}
-              />
-            ) : (
-              <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
-                    <div className="bg-primary/10 p-4 rounded-full">
-                        <Sparkles className="h-8 w-8 text-primary"/>
-                    </div>
-                    <h3 className="text-xl font-semibold text-foreground">
-                        Your AI-Generated Scenario Awaits
-                    </h3>
-                    <p className="text-muted-foreground text-base max-w-md">
-                       Use the controls on the left to select a theme, concept, and difficulty, then click "Generate Scenario" to begin.
-                    </p>
-                </div>
-            )}
-          </CardContent>
-          {(generatedData || solutionTips) && (
-            <CardFooter className="flex-col items-start gap-4">
-              <Accordion type="multiple" className="w-full">
-                {solutionTips && (
-                  <AccordionItem value="solution-tips">
-                    <AccordionTrigger className="text-lg font-medium">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5" />
-                        Approach Tips
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <ul className="space-y-3 list-disc pl-5">
-                        {solutionTips.tips.map((tip, index) => (
-                          <li key={index} className="text-muted-foreground">
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
+        <div className="space-y-8">
+            <Card className="min-h-[600px] sticky top-24">
+            <CardHeader>
+                <CardTitle className="font-headline">Generated Scenario</CardTitle>
                 {generatedData && (
-                  <>
-                    <AccordionItem value="hints">
-                      <AccordionTrigger className="text-lg font-medium">
-                        <div className="flex items-center gap-2">
-                          <Lightbulb className="h-5 w-5" />
-                          Adaptive Hints
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-4">
-                        <div className="space-y-4">
-                          {generatedData.hints.map((hint, index) => (
-                            <div
-                              key={index}
-                              className="p-4 bg-background/50 rounded-md border"
-                            >
-                              <p className="text-muted-foreground">{hint}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem value="test-cases">
-                      <AccordionTrigger className="text-lg font-medium">
-                        <div className="flex items-center gap-2">
-                          <FileCheck2 className="h-5 w-5" />
-                          Smart Test Cases
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-4">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Input</TableHead>
-                              <TableHead>Output</TableHead>
-                              <TableHead>Explanation</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {generatedData.testCases.map((tc, index) => (
-                              <TableRow key={index}>
-                                <TableCell className="font-mono text-xs">
-                                  {tc.input}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs">
-                                  {tc.output}
-                                </TableCell>
-                                <TableCell>
-                                  {tc.isEdgeCase && (
-                                    <Badge
-                                      variant="outline"
-                                      className="mb-1 mr-2 border-amber-500 text-amber-500"
-                                    >
-                                      Edge Case
-                                    </Badge>
-                                  )}
-                                  {tc.explanation}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-4 top-4"
+                    onClick={() => copyToClipboard(generatedData.scenario)}
+                >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                </Button>
                 )}
-              </Accordion>
-              {generatedData && (
-                <div className="w-full pt-4">
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleCreateAssignment}
-                    disabled={isCreatingAssignment}
-                  >
-                    {isCreatingAssignment ? (
-                       <>
-                        <Loader className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                        'Create Assignment from Scenario'
-                    )}
-                  </Button>
+            </CardHeader>
+            <CardContent>
+                {isGenerating ? (
+                <div className="space-y-6 pt-4">
+                    <div className="space-y-3">
+                    <div className="h-5 w-3/4 rounded-full bg-muted animate-pulse"></div>
+                    <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
+                    <div className="h-4 w-5/6 rounded-full bg-muted animate-pulse"></div>
+                    </div>
+                    <div className="space-y-3">
+                    <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
+                    <div className="h-4 w-1/2 rounded-full bg-muted animate-pulse"></div>
+                    <div className="h-4 w-4/5 rounded-full bg-muted animate-pulse"></div>
+                    </div>
                 </div>
-              )}
-            </CardFooter>
-          )}
-        </Card>
+                ) : generatedData ? (
+                <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-foreground"
+                    dangerouslySetInnerHTML={{
+                    __html: generatedData.scenario.replace(/\n/g, '<br />'),
+                    }}
+                />
+                ) : (
+                <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
+                        <div className="bg-primary/10 p-4 rounded-full">
+                            <Sparkles className="h-8 w-8 text-primary"/>
+                        </div>
+                        <h3 className="text-xl font-semibold text-foreground">
+                            Your AI-Generated Scenario Awaits
+                        </h3>
+                        <p className="text-muted-foreground text-base max-w-md">
+                        Use the controls on the left to select a theme, concept, and difficulty, then click "Generate Scenario" to begin.
+                        </p>
+                    </div>
+                )}
+            </CardContent>
+            {(generatedData || solutionTips) && (
+                <CardFooter className="flex-col items-start gap-4">
+                <Accordion type="multiple" className="w-full">
+                    {solutionTips && (
+                    <AccordionItem value="solution-tips">
+                        <AccordionTrigger className="text-lg font-medium">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5" />
+                            Approach Tips
+                        </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-4">
+                        <ul className="space-y-3 list-disc pl-5">
+                            {solutionTips.tips.map((tip, index) => (
+                            <li key={index} className="text-muted-foreground">
+                                {tip}
+                            </li>
+                            ))}
+                        </ul>
+                        </AccordionContent>
+                    </AccordionItem>
+                    )}
+                    {generatedData && (
+                    <>
+                        <AccordionItem value="hints">
+                        <AccordionTrigger className="text-lg font-medium">
+                            <div className="flex items-center gap-2">
+                            <Lightbulb className="h-5 w-5" />
+                            Adaptive Hints
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-4">
+                            <div className="space-y-4">
+                            {generatedData.hints.map((hint, index) => (
+                                <div
+                                key={index}
+                                className="p-4 bg-background/50 rounded-md border"
+                                >
+                                <p className="text-muted-foreground">{hint}</p>
+                                </div>
+                            ))}
+                            </div>
+                        </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="test-cases">
+                        <AccordionTrigger className="text-lg font-medium">
+                            <div className="flex items-center gap-2">
+                            <FileCheck2 className="h-5 w-5" />
+                            Smart Test Cases
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-4">
+                            <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Input</TableHead>
+                                <TableHead>Output</TableHead>
+                                <TableHead>Explanation</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {generatedData.testCases.map((tc, index) => (
+                                <TableRow key={index}>
+                                    <TableCell className="font-mono text-xs">
+                                    {tc.input}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                    {tc.output}
+                                    </TableCell>
+                                    <TableCell>
+                                    {tc.isEdgeCase && (
+                                        <Badge
+                                        variant="outline"
+                                        className="mb-1 mr-2 border-amber-500 text-amber-500"
+                                        >
+                                        Edge Case
+                                        </Badge>
+                                    )}
+                                    {tc.explanation}
+                                    </TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                            </Table>
+                        </AccordionContent>
+                        </AccordionItem>
+                    </>
+                    )}
+                </Accordion>
+                {generatedData && (
+                    <div className="w-full pt-4">
+                    <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleCreateAssignment}
+                        disabled={isCreatingAssignment}
+                    >
+                        {isCreatingAssignment ? (
+                        <>
+                            <Loader className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                        ) : (
+                            'Create Assignment from Scenario'
+                        )}
+                    </Button>
+                    </div>
+                )}
+                </CardFooter>
+            )}
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-xl">Student Submissions</CardTitle>
+                    <CardDescription>Review your students' completed assignments.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingSubmissions ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">Loading submissions...</div>
+                    ) : submissions.length > 0 ? (
+                         <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Student</TableHead>
+                                <TableHead>Concept</TableHead>
+                                <TableHead>Score</TableHead>
+                                <TableHead>Submitted</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {submissions.map((sub) => (
+                                    <TableRow key={sub.id}>
+                                        <TableCell className="font-medium">{sub.studentName}</TableCell>
+                                        <TableCell>{sub.dsaConcept}</TableCell>
+                                        <TableCell>{sub.score}%</TableCell>
+                                        <TableCell>{sub.submittedAt ? format(sub.submittedAt.toDate(), 'P') : 'N/A'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
+                            <GraduationCap className="h-8 w-8 text-muted-foreground"/>
+                            <h3 className="text-lg font-semibold text-foreground">
+                                No Submissions Yet
+                            </h3>
+                            <p className="text-muted-foreground text-sm">
+                                When students complete assignments, their results will appear here.
+                            </p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </div>
     </div>
   );
 }
+
+    
