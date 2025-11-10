@@ -1,7 +1,16 @@
+'use client';
 import Link from 'next/link';
 import { BrainCircuit } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export function Footer() {
+  const pathname = usePathname();
+  const isDashboardPage = pathname.startsWith('/dashboard');
+
+  if (isDashboardPage) {
+    return null; // Don't render footer on dashboard pages
+  }
+
   return (
     <footer className="border-t bg-card">
       <div className="container mx-auto px-4 py-8 md:px-6">
