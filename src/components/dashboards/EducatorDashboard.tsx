@@ -65,6 +65,7 @@ import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const dsaConcepts = {
@@ -381,7 +382,7 @@ export default function EducatorDashboard() {
                     <Label>DSA Concept(s)</Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start font-normal">
+                        <Button variant="outline" className="w-full justify-start font-normal h-auto min-h-10">
                            <div className="flex gap-1 flex-wrap">
                               {selectedConcepts.length > 0 ? selectedConcepts.map((concept) => (
                                   <Badge variant="secondary" key={concept}>{concept}</Badge>
@@ -390,22 +391,24 @@ export default function EducatorDashboard() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
-                        {Object.entries(dsaConcepts).map(([group, concepts], index) => (
-                          <DropdownMenuGroup key={group}>
-                            <DropdownMenuLabel>{group}</DropdownMenuLabel>
-                            {concepts.map(concept => (
-                               <DropdownMenuCheckboxItem
-                                key={concept}
-                                checked={selectedConcepts.includes(concept)}
-                                onCheckedChange={() => handleConceptSelection(concept)}
-                                onSelect={(e) => e.preventDefault()} // Prevent closing on select
-                              >
-                                {concept}
-                              </DropdownMenuCheckboxItem>
-                            ))}
-                            {index < Object.keys(dsaConcepts).length - 1 && <DropdownMenuSeparator />}
-                          </DropdownMenuGroup>
-                        ))}
+                        <ScrollArea className="h-72">
+                          {Object.entries(dsaConcepts).map(([group, concepts], index) => (
+                            <DropdownMenuGroup key={group}>
+                              <DropdownMenuLabel>{group}</DropdownMenuLabel>
+                              {concepts.map(concept => (
+                                <DropdownMenuCheckboxItem
+                                  key={concept}
+                                  checked={selectedConcepts.includes(concept)}
+                                  onCheckedChange={() => handleConceptSelection(concept)}
+                                  onSelect={(e) => e.preventDefault()} // Prevent closing on select
+                                >
+                                  {concept}
+                                </DropdownMenuCheckboxItem>
+                              ))}
+                              {index < Object.keys(dsaConcepts).length - 1 && <DropdownMenuSeparator />}
+                            </DropdownMenuGroup>
+                          ))}
+                        </ScrollArea>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
