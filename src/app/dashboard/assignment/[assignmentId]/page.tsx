@@ -146,19 +146,20 @@ export default function AssignmentPage() {
             // Step 4: Fetch recent performance history
             const historyQuery = query(
                 collection(firestore, 'users', user.uid, 'assignments'),
-                where('status', '==', 'completed'),
                 orderBy('submittedAt', 'desc'),
-                limit(5)
+                limit(10) // Fetch more and filter in-client
             );
             const historySnapshot = await getDocs(historyQuery);
-            const performanceHistory = historySnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
+            const performanceHistory = historySnapshot.docs
+                .map(doc => doc.data())
+                .filter(data => data.status === 'completed') // Filter for completed assignments on the client
+                .slice(0, 5) // Take the 5 most recent completed ones
+                .map(data => ({
                     dsaConcept: data.dsaConcept,
                     score: data.score,
                     difficulty: 'Medium' // Placeholder, this should be fetched from scenario
-                };
-            });
+                }));
+
 
             // Step 5: Get current user profile to find previous goal
             const userDoc = await getDoc(doc(firestore, 'users', user.uid));
@@ -477,5 +478,3 @@ export default function AssignmentPage() {
         </div>
     );
 }
-
-    
