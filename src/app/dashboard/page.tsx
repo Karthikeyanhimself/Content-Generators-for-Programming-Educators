@@ -1,68 +1,22 @@
 'use client';
 
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import {
-  generateThemedScenario,
-  GenerateThemedScenarioInput,
-  GenerateThemedScenarioOutput,
-} from '@/ai/flows/generate-themed-scenario';
-import {
-  Loader,
-  Lightbulb,
-  FileCheck2,
-  ChevronDown,
-  Copy,
-} from 'lucide-react';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
+import { doc } from 'firebase/firestore';
+import { useDoc } from '@/firebase/firestore/use-doc';
+
+import StudentDashboard from '@/components/dashboards/StudentDashboard';
+import EducatorDashboard from '@/components/dashboards/EducatorDashboard';
+
+interface UserProfile {
+  role: 'student' | 'educator';
+}
 
 export default function DashboardPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const { toast } = useToast();
-
-  const [theme, setTheme] = useState('Adventure/Fantasy');
-  const [dsaConcept, setDsaConcept] = useState('Arrays');
-  const [difficulty, setDifficulty] = useState([1]);
-  const [generatedData, setGeneratedData] =
-    useState<GenerateThemedScenarioOutput | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [revealedHints, setRevealedHints] = useState(0);
+  const firestore = useFirestore();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -70,39 +24,14 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const difficultyLabels = ['Easy', 'Medium', 'Hard'];
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, 'users', user.uid) : null),
+    [user, firestore]
+  );
+  
+  const { data: userData, isLoading: isUserDocLoading } = useDoc<UserProfile>(userDocRef);
 
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    setGeneratedData(null);
-    setRevealedHints(0);
-    try {
-      const input: GenerateThemedScenarioInput = {
-        theme: theme as any,
-        dsaConcept,
-        difficulty: difficultyLabels[difficulty[0]] as any,
-      };
-      const result = await generateThemedScenario(input);
-      setGeneratedData(result);
-    } catch (error) {
-      console.error('Error generating scenario:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error Generating Scenario',
-        description:
-          'Sorry, there was an error generating the scenario. Please try again.',
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: 'Copied to clipboard!' });
-  };
-
-  if (isUserLoading) {
+  if (isUserLoading || isUserDocLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         Loading...
@@ -113,210 +42,18 @@ export default function DashboardPage() {
   if (!user) {
     return null;
   }
+  
+  const userRole = userData?.role;
 
   return (
     <div className="container mx-auto px-4 py-8 pt-24">
-      <div className="grid gap-8 lg:grid-cols-12">
-        <div className="lg:col-span-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">
-                Scenario Generator
-              </CardTitle>
-              <CardDescription>
-                Create a new programming challenge.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="theme">Theme</Label>
-                <Select value={theme} onValueChange={setTheme}>
-                  <SelectTrigger id="theme">
-                    <SelectValue placeholder="Select a theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Adventure/Fantasy">
-                      Adventure/Fantasy
-                    </SelectItem>
-                    <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
-                    <SelectItem value="Business/Real-world">
-                      Business/Real-world
-                    </SelectItem>
-                    <SelectItem value="Gaming">Gaming</SelectItem>
-                    <SelectItem value="Mystery/Detective">
-                      Mystery/Detective
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dsa-concept">DSA Concept</Label>
-                <Input
-                  id="dsa-concept"
-                  placeholder="e.g., Arrays, Trees, Graphs"
-                  value={dsaConcept}
-                  onChange={(e) => setDsaConcept(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Difficulty</Label>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {difficultyLabels[difficulty[0]]}
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={2}
-                  step={1}
-                  value={difficulty}
-                  onValueChange={setDifficulty}
-                />
-              </div>
-
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Scenario'
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+      {userRole === 'student' && <StudentDashboard />}
+      {userRole === 'educator' && <EducatorDashboard />}
+      {!userRole && (
+        <div className="flex h-full items-center justify-center">
+          <p>Could not determine user role. Please contact support.</p>
         </div>
-
-        <div className="lg:col-span-8">
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="font-headline">Generated Scenario</CardTitle>
-              {generatedData && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-4 top-4"
-                  onClick={() => copyToClipboard(generatedData.scenario)}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {isGenerating ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="h-4 w-1/4 rounded-full bg-muted animate-pulse"></div>
-                    <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
-                    <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-1/2 rounded-full bg-muted animate-pulse"></div>
-                    <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
-                    <div className="h-4 w-5/6 rounded-full bg-muted animate-pulse"></div>
-                  </div>
-                </div>
-              ) : generatedData ? (
-                <div
-                  className="prose prose-sm max-w-none text-card-foreground"
-                  dangerouslySetInnerHTML={{
-                    __html: generatedData.scenario.replace(/\n/g, '<br />'),
-                  }}
-                />
-              ) : (
-                <p className="text-muted-foreground">
-                  Your generated scenario will appear here.
-                </p>
-              )}
-            </CardContent>
-            {generatedData && (
-              <CardFooter className="flex-col items-start gap-4">
-                <Accordion type="multiple" className="w-full">
-                  <AccordionItem value="hints">
-                    <AccordionTrigger className="text-base font-medium">
-                      <div className="flex items-center gap-2">
-                        <Lightbulb className="h-5 w-5" />
-                        Adaptive Hints
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <div className="space-y-4">
-                        {generatedData.hints.map((hint, index) => (
-                          <div key={index}>
-                            {index < revealedHints ? (
-                              <p className="text-muted-foreground">{hint}</p>
-                            ) : (
-                              index === revealedHints && (
-                                <Button
-                                  onClick={() =>
-                                    setRevealedHints(revealedHints + 1)
-                                  }
-                                >
-                                  Reveal Hint {index + 1}
-                                </Button>
-                              )
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="test-cases">
-                    <AccordionTrigger className="text-base font-medium">
-                      <div className="flex items-center gap-2">
-                        <FileCheck2 className="h-5 w-5" />
-                        Smart Test Cases
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Input</TableHead>
-                            <TableHead>Output</TableHead>
-                            <TableHead>Explanation</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {generatedData.testCases.map((tc, index) => (
-                            <TableRow key={index}>
-                              <TableCell className="font-mono text-xs">
-                                {tc.input}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {tc.output}
-                              </TableCell>
-                              <TableCell>
-                                {tc.isEdgeCase && (
-                                  <Badge
-                                    variant="outline"
-                                    className="mb-1 mr-2"
-                                  >
-                                    Edge Case
-                                  </Badge>
-                                )}
-                                {tc.explanation}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </CardFooter>
-            )}
-          </Card>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
