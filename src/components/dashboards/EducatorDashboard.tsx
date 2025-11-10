@@ -352,40 +352,23 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     setIsAddingStudent(true);
   
     try {
-      // 1. Look up student UID by email
       const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
-      const emailLookupSnap = await getDoc(emailLookupRef).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: emailLookupRef.path,
-          operation: 'get',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        // We throw the error to be caught by the outer try/catch
-        throw permissionError;
-      });
+      const emailLookupSnap = await getDoc(emailLookupRef);
   
       if (!emailLookupSnap.exists()) {
         toast({
-          variant: 'destructive',
-          title: 'Student Not Found',
-          description: 'No student found with that email address. Please check the email and ask the student to sign up.',
+            variant: 'destructive',
+            title: 'Student Not Found',
+            description: 'No student found with that email address. Please check the email and ask the student to sign up.',
         });
         setIsAddingStudent(false);
         return;
       }
-  
+      
       const { uid: studentUid } = emailLookupSnap.data();
   
-      // 2. Get student's profile data
       const studentUserRef = doc(firestore, 'users', studentUid);
-      const studentUserSnap = await getDoc(studentUserRef).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: studentUserRef.path,
-          operation: 'get',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw permissionError;
-      });
+      const studentUserSnap = await getDoc(studentUserRef);
   
       if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
         toast({
@@ -406,17 +389,8 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
         addedAt: serverTimestamp(),
       };
   
-      // 3. Add student to educator's roster
       const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, rosterData).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: rosterRef.path,
-          operation: 'create',
-          requestResourceData: rosterData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw permissionError;
-      });
+      await setDoc(rosterRef, rosterData);
   
       toast({
         title: 'Student Added!',
@@ -425,17 +399,22 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
       setNewStudentEmail('');
   
     } catch (error: any) {
-      // The FirestorePermissionError is already emitted inside the .catch blocks
-      // so we only need to handle other potential errors here, or simply log them
-      // if the permission error is the main one we expect.
-      if (!(error instanceof FirestorePermissionError)) {
-        console.error('An unexpected error occurred while adding student:', error);
-        toast({
-          variant: 'destructive',
-          title: 'An Unexpected Error Occurred',
-          description: 'Could not add the student. Please try again later.',
-        });
-      }
+        const isPermissionError = error.code === 'permission-denied';
+
+        if (isPermissionError) {
+             const permissionError = new FirestorePermissionError({
+                path: `users-by-email/${newStudentEmail}`,
+                operation: 'get',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+             console.error('An unexpected error occurred while adding student:', error);
+             toast({
+                variant: 'destructive',
+                title: 'An Unexpected Error Occurred',
+                description: 'Could not add the student. Please try again later.',
+             });
+        }
     } finally {
       setIsAddingStudent(false);
     }
