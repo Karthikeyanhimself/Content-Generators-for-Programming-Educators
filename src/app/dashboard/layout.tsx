@@ -66,11 +66,14 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
         <Sidebar collapsible="icon">
-            <SidebarHeader>
+            <SidebarHeader className='flex items-center justify-between p-2'>
                  <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
                     <BrainCircuit className="h-6 w-6 text-primary" />
                     <span className="font-headline group-data-[collapsible=icon]:hidden">AlgoGenius</span>
                 </Link>
+                <SidebarTrigger className="group-data-[collapsible=icon]:rotate-180">
+                    <PanelLeft/>
+                </SidebarTrigger>
             </SidebarHeader>
             <SidebarContent className="p-2">
                  <SidebarMenu>
@@ -120,11 +123,6 @@ export default function DashboardLayout({
                             <LogOut />
                             <span className="group-data-[collapsible=icon]:hidden">Log out</span>
                         </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                         <SidebarTrigger className="group-data-[collapsible=icon]:rotate-180">
-                            <PanelLeft/>
-                         </SidebarTrigger>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>
