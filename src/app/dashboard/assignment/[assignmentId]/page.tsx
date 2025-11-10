@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc, addDoc, collection, getDocs, query, limit, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -11,12 +12,14 @@ import { updateLearningGoalsAndCreateAssignment } from '@/ai/flows/update-learni
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { BrainCircuit, Loader, Send } from 'lucide-react';
+import { BrainCircuit, Loader, Send, Lightbulb, FileCheck2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { addDays } from 'date-fns';
-import type { AssessCodeInput, AssessCodeOutput } from '@/ai/flows/schemas';
+import type { AssessCodeInput } from '@/ai/flows/schemas';
 import type { UpdateLearningGoalsInput } from '@/ai/flows/schemas';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type AssignmentData = {
     id: string;
@@ -31,6 +34,20 @@ type AssignmentData = {
 type ScenarioData = {
     content: string;
     difficulty: string;
+};
+
+type HintData = {
+    id: string;
+    hintLevel: number;
+    content: string;
+};
+
+type TestCaseData = {
+    id: string;
+    input: string;
+    output: string;
+    explanation: string;
+    isEdgeCase: boolean;
 };
 
 export default function AssignmentPage() {
@@ -54,6 +71,18 @@ export default function AssignmentPage() {
         [assignmentData, firestore]
     );
     const { data: scenarioData, isLoading: isScenarioLoading } = useDoc<ScenarioData>(scenarioDocRef);
+
+    const hintsCollectionRef = useMemoFirebase(
+        () => (assignmentData ? collection(firestore, 'scenarios', assignmentData.scenarioId, 'hints') : null),
+        [assignmentData, firestore]
+    );
+    const { data: hintsData, isLoading: areHintsLoading } = useCollection<HintData>(query(hintsCollectionRef || collection(firestore, 'dummy'), orderBy('hintLevel')));
+
+    const testCasesCollectionRef = useMemoFirebase(
+        () => (assignmentData ? collection(firestore, 'scenarios', assignmentData.scenarioId, 'testCases') : null),
+        [assignmentData, firestore]
+    );
+    const { data: testCasesData, isLoading: areTestCasesLoading } = useCollection<TestCaseData>(testCasesCollectionRef);
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -124,7 +153,7 @@ export default function AssignmentPage() {
             const newScenarioRef = await addDoc(collection(firestore, 'scenarios'), {
                 theme: 'Business/Real-world',
                 content: nextAssignment.scenario,
-                difficulty: nextAssignment.dsaConcept,
+                difficulty: goal.recommendedDifficulty,
                 dsaConcept: nextAssignment.dsaConcept,
                 createdAt: serverTimestamp(),
                 createdBy: 'SYSTEM',
@@ -142,6 +171,18 @@ export default function AssignmentPage() {
                 dsaConcept: nextAssignment.dsaConcept,
                 isAutonomouslyGenerated: true,
             });
+
+            // Create hints for the new scenario
+            const hintsCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'hints');
+            for (const [index, hintContent] of nextAssignment.hints.entries()) {
+                await addDoc(hintsCollection, { hintLevel: index + 1, content: hintContent });
+            }
+
+            // Create test cases for the new scenario
+            const testCasesCollection = collection(firestore, 'scenarios', newScenarioRef.id, 'testCases');
+            for (const testCase of nextAssignment.testCases) {
+                await addDoc(testCasesCollection, testCase);
+            }
 
             toast({
                 title: "New Goal & Assignment Created!",
@@ -162,7 +203,7 @@ export default function AssignmentPage() {
         }
     };
     
-    const isLoading = isUserLoading || isAssignmentLoading || isScenarioLoading;
+    const isLoading = isUserLoading || isAssignmentLoading || isScenarioLoading || areHintsLoading || areTestCasesLoading;
 
     if (isLoading) {
         return (
@@ -201,6 +242,66 @@ export default function AssignmentPage() {
                     <div className="prose dark:prose-invert max-w-none mb-8"
                         dangerouslySetInnerHTML={{ __html: scenarioData.content.replace(/\n/g, '<br />') }}
                     />
+                    
+                    <Accordion type="multiple" className="w-full mb-8">
+                        {hintsData && hintsData.length > 0 && (
+                            <AccordionItem value="hints">
+                                <AccordionTrigger className="text-lg font-medium">
+                                    <div className="flex items-center gap-2">
+                                        <Lightbulb className="h-5 w-5" />
+                                        Adaptive Hints
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-4">
+                                    <div className="space-y-4">
+                                        {hintsData.map((hint) => (
+                                            <div key={hint.id} className="p-4 bg-background/50 rounded-md border">
+                                                <p className="text-muted-foreground">{hint.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+                        {testCasesData && testCasesData.length > 0 && (
+                            <AccordionItem value="test-cases">
+                                <AccordionTrigger className="text-lg font-medium">
+                                    <div className="flex items-center gap-2">
+                                        <FileCheck2 className="h-5 w-5" />
+                                        Smart Test Cases
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-4">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Input</TableHead>
+                                                <TableHead>Output</TableHead>
+                                                <TableHead>Explanation</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {testCasesData.map((tc) => (
+                                                <TableRow key={tc.id}>
+                                                    <TableCell className="font-mono text-xs">{tc.input}</TableCell>
+                                                    <TableCell className="font-mono text-xs">{tc.output}</TableCell>
+                                                    <TableCell>
+                                                        {tc.isEdgeCase && (
+                                                            <Badge variant="outline" className="mb-1 mr-2 border-amber-500 text-amber-500">
+                                                                Edge Case
+                                                            </Badge>
+                                                        )}
+                                                        {tc.explanation}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+                    </Accordion>
+
 
                     {isCompleted ? (
                          <Alert>
@@ -253,3 +354,5 @@ export default function AssignmentPage() {
         </div>
     );
 }
+
+    
