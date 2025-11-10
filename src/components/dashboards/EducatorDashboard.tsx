@@ -400,6 +400,10 @@ export default function EducatorDashboard() {
                                         <CommandItem
                                             key={concept}
                                             value={concept}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                            }}
                                             onSelect={(currentValue) => {
                                                 setSelectedConcepts(prev => 
                                                     prev.includes(concept)
