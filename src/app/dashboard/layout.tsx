@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { BrainCircuit, LayoutDashboard, UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarTrigger, SidebarInset, SidebarHeader } from '@/components/ui/sidebar';
+import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarTrigger, SidebarInset, SidebarHeader, SidebarProvider } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
 export default function DashboardLayout({
