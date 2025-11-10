@@ -17,9 +17,38 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc, Firestore } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+
+const initiateStudentSeed = (firestore: Firestore) => {
+    const students = [
+        { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
+        { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
+    ];
+
+    students.forEach(student => {
+        // Create user profile document for the sample student
+        const userDocRef = doc(firestore, `users/${student.uid}`);
+        // Use standard setDoc for this background task.
+        setDoc(userDocRef, {
+            id: student.uid,
+            email: student.email,
+            role: 'student',
+            firstName: student.firstName,
+            lastName: student.lastName,
+            academicLevel: 'University',
+            learningGoals: 'Learn DSA for interviews',
+            preferredProgrammingLanguages: ['Python', 'JavaScript'],
+            hasCompletedAssessment: true, // Assume they are existing students
+        }, { merge: true });
+
+        // Create the necessary email lookup document for the sample student
+        const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
+        setDoc(emailDocRef, { uid: student.uid });
+    });
+};
+
 
 export default function SignupPage() {
   // Common state
@@ -45,33 +74,6 @@ export default function SignupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   
-  const seedSampleStudents = () => {
-    if (!firestore) return;
-    const students = [
-        { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
-        { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
-    ];
-
-    students.forEach(student => {
-        // Create user profile document for the sample student
-        const userDocRef = doc(firestore, `users/${student.uid}`);
-        setDocumentNonBlocking(userDocRef, {
-            id: student.uid,
-            email: student.email,
-            role: 'student',
-            firstName: student.firstName,
-            lastName: student.lastName,
-            academicLevel: 'University',
-            learningGoals: 'Learn DSA for interviews',
-            preferredProgrammingLanguages: ['Python', 'JavaScript'],
-        }, { merge: true });
-
-        // Create the necessary email lookup document for the sample student
-        const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
-        setDocumentNonBlocking(emailDocRef, { uid: student.uid }, {});
-    });
-  };
-
   useEffect(() => {
     // This effect runs when the user object is available after signup.
     // It creates the user document in Firestore.
@@ -105,7 +107,9 @@ export default function SignupPage() {
           institution,
         };
         // For developer convenience, seed sample students when an educator signs up
-        seedSampleStudents();
+        if (firestore) {
+            initiateStudentSeed(firestore);
+        }
       }
 
       setDocumentNonBlocking(userRef, profileData, { merge: true });
