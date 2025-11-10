@@ -52,14 +52,13 @@ export default function EducatorDashboard() {
   const [generatedData, setGeneratedData] =
     useState<GenerateThemedScenarioOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [revealedHints, setRevealedHints] = useState(0);
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setIsGenerating(true);
     setGeneratedData(null);
-    setRevealedHints(0);
     try {
       const input: GenerateThemedScenarioInput = {
         theme: theme as any,
@@ -87,13 +86,14 @@ export default function EducatorDashboard() {
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-12">
-      <div className="lg:col-span-4">
-        <Card>
+    <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
+      <div className="md:col-span-4 lg:col-span-3">
+        <form onSubmit={handleGenerate}>
+        <Card className="sticky top-24">
           <CardHeader>
-            <CardTitle className="font-headline">Scenario Generator</CardTitle>
+            <CardTitle className="font-headline text-xl">Scenario Generator</CardTitle>
             <CardDescription>
-              Create a new programming challenge to assign to students.
+              Craft the perfect challenge for your students.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -144,9 +144,10 @@ export default function EducatorDashboard() {
                 onValueChange={setDifficulty}
               />
             </div>
-
+          </CardContent>
+           <CardFooter>
             <Button
-              onClick={handleGenerate}
+              type="submit"
               disabled={isGenerating}
               className="w-full"
             >
@@ -159,22 +160,13 @@ export default function EducatorDashboard() {
                 'Generate Scenario'
               )}
             </Button>
-          </CardContent>
+          </CardFooter>
         </Card>
-        {generatedData && (
-          <Card>
-            <CardHeader>
-                <CardTitle>Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Button className='w-full'>Create Assignment</Button>
-            </CardContent>
-          </Card>
-        )}
+        </form>
       </div>
 
-      <div className="lg:col-span-8">
-        <Card className="h-full">
+      <div className="md:col-span-8 lg:col-span-9">
+        <Card className="min-h-[600px]">
           <CardHeader>
             <CardTitle className="font-headline">Generated Scenario</CardTitle>
             {generatedData && (
@@ -191,27 +183,27 @@ export default function EducatorDashboard() {
           </CardHeader>
           <CardContent>
             {isGenerating ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="h-4 w-1/4 rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
-                  <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse"></div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-1/2 rounded-full bg-muted animate-pulse"></div>
+              <div className="space-y-6 pt-4">
+                <div className="space-y-3">
+                  <div className="h-5 w-3/4 rounded-full bg-muted animate-pulse"></div>
                   <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
                   <div className="h-4 w-5/6 rounded-full bg-muted animate-pulse"></div>
+                </div>
+                <div className="space-y-3">
+                  <div className="h-4 w-full rounded-full bg-muted animate-pulse"></div>
+                  <div className="h-4 w-1/2 rounded-full bg-muted animate-pulse"></div>
+                  <div className="h-4 w-4/5 rounded-full bg-muted animate-pulse"></div>
                 </div>
               </div>
             ) : generatedData ? (
               <div
-                className="prose prose-sm max-w-none text-card-foreground"
+                className="prose prose-sm dark:prose-invert max-w-none text-foreground"
                 dangerouslySetInnerHTML={{
                   __html: generatedData.scenario.replace(/\n/g, '<br />'),
                 }}
               />
             ) : (
-              <p className="text-muted-foreground">
+              <p className="text-center text-muted-foreground pt-16">
                 Your generated scenario will appear here.
               </p>
             )}
@@ -220,7 +212,7 @@ export default function EducatorDashboard() {
             <CardFooter className="flex-col items-start gap-4">
               <Accordion type="multiple" className="w-full">
                 <AccordionItem value="hints">
-                  <AccordionTrigger className="text-base font-medium">
+                  <AccordionTrigger className="text-lg font-medium">
                     <div className="flex items-center gap-2">
                       <Lightbulb className="h-5 w-5" />
                       Adaptive Hints
@@ -229,7 +221,7 @@ export default function EducatorDashboard() {
                   <AccordionContent className="pt-4">
                     <div className="space-y-4">
                       {generatedData.hints.map((hint, index) => (
-                        <div key={index}>
+                        <div key={index} className="p-4 bg-background/50 rounded-md border">
                           <p className="text-muted-foreground">{hint}</p>
                         </div>
                       ))}
@@ -237,7 +229,7 @@ export default function EducatorDashboard() {
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="test-cases">
-                  <AccordionTrigger className="text-base font-medium">
+                  <AccordionTrigger className="text-lg font-medium">
                     <div className="flex items-center gap-2">
                       <FileCheck2 className="h-5 w-5" />
                       Smart Test Cases
@@ -265,7 +257,7 @@ export default function EducatorDashboard() {
                               {tc.isEdgeCase && (
                                 <Badge
                                   variant="outline"
-                                  className="mb-1 mr-2"
+                                  className="mb-1 mr-2 border-amber-500 text-amber-500"
                                 >
                                   Edge Case
                                 </Badge>
@@ -279,6 +271,9 @@ export default function EducatorDashboard() {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
+               <div className="w-full pt-4">
+                  <Button className='w-full' size="lg">Create Assignment from Scenario</Button>
+              </div>
             </CardFooter>
           )}
         </Card>
