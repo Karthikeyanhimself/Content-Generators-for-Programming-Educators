@@ -62,7 +62,8 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if request.auth != null; // Allow authenticated users (educators) to create
+      allow update, delete: if false;
     }
 
     /**
@@ -101,7 +102,8 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId}/hints/{hintId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if request.auth != null; // Allow scenario creator to add hints.
+      allow update, delete: if false;
     }
 
     /**
@@ -114,7 +116,8 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId}/testCases/{testCaseId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if request.auth != null; // Allow scenario creator to add test cases.
+      allow update, delete: if false;
     }
   }
 }
