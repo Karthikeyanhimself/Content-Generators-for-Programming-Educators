@@ -10,8 +10,6 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -53,10 +51,7 @@ import {
   collection,
   serverTimestamp,
   query,
-  where,
   orderBy,
-  getDoc,
-  doc,
   setDoc,
   deleteDoc
 } from 'firebase/firestore';
@@ -68,8 +63,8 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 
 
 const dsaConcepts = {
@@ -522,12 +517,13 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                     <Card>
                                                         <ScrollArea className="h-40">
                                                             <CardContent className="p-2">
-                                                                {students && students.length > 0 ? students.map((s:any) => (
+                                                                {studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">Loading students...</div>}
+                                                                {!studentsLoading && students && students.length > 0 ? students.map((s:any) => (
                                                                     <div key={s.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent">
                                                                         <Checkbox 
                                                                             id={`student-${s.id}`} 
-                                                                            onCheckedChange={() => handleStudentSelection(s.id)}
-                                                                            checked={studentsToAssign.includes(s.id)}
+                                                                            onCheckedChange={() => handleStudentSelection(s.uid)}
+                                                                            checked={studentsToAssign.includes(s.uid)}
                                                                         />
                                                                         <label
                                                                             htmlFor={`student-${s.id}`}
@@ -536,7 +532,9 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                                             {s.firstName} {s.lastName} <span className="text-muted-foreground">({s.email})</span>
                                                                         </label>
                                                                     </div>
-                                                                )) : <div className="p-4 text-sm text-center text-muted-foreground">No students in roster.</div>}
+                                                                )) : (
+                                                                    !studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">No students in roster.</div>
+                                                                )}
                                                             </CardContent>
                                                         </ScrollArea>
                                                     </Card>
@@ -757,3 +755,5 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
+
+    
