@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
@@ -17,6 +17,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function DashboardLayout({
   children,
@@ -31,6 +34,12 @@ export default function DashboardLayout({
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isPublishing, setIsPublishing] = useState<string | null>(null);
+
+  // State for editing a submission
+  const [editingSubmission, setEditingSubmission] = useState<any | null>(null);
+  const [editableScore, setEditableScore] = useState<number | string>('');
+  const [editableFeedback, setEditableFeedback] = useState<string>('');
+
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -57,6 +66,14 @@ export default function DashboardLayout({
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
+  
+  // When a submission is selected for editing, populate the state
+  useEffect(() => {
+    if (editingSubmission) {
+      setEditableScore(editingSubmission.score);
+      setEditableFeedback(editingSubmission.feedback);
+    }
+  }, [editingSubmission]);
 
   const handleLogout = () => {
     if (auth) {
@@ -69,11 +86,11 @@ export default function DashboardLayout({
     setIsPublishing(submission.id);
 
     try {
-      // 1. Update the student's original assignment document
+      // 1. Update the student's original assignment document with the (potentially edited) score and feedback
       const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
       await updateDoc(studentAssignmentRef, {
-        score: submission.score,
-        feedback: submission.feedback,
+        score: Number(editableScore), // Use the editable score from state
+        feedback: editableFeedback, // Use the editable feedback from state
         status: 'completed',
       });
 
@@ -81,12 +98,17 @@ export default function DashboardLayout({
       const educatorSubmissionRef = doc(firestore, `educators/${user!.uid}/submissions/${submission.id}`);
       await updateDoc(educatorSubmissionRef, {
         isPublished: true,
+        score: Number(editableScore), // Also update the score here for consistency
+        feedback: editableFeedback,
       });
 
       toast({
         title: 'Score Published!',
         description: `${submission.studentName} can now see their results.`,
       });
+      
+      setEditingSubmission(null); // Close the dialog by resetting the state
+
     } catch (error) {
       console.error('Error publishing score:', error);
       toast({
@@ -158,9 +180,9 @@ export default function DashboardLayout({
                             <ScrollArea className="h-64">
                               {submissions.map((sub: any) => (
                                 <SidebarMenuItem key={sub.id}>
-                                   <AlertDialog>
+                                   <AlertDialog open={editingSubmission?.id === sub.id} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
                                         <AlertDialogTrigger asChild>
-                                            <SidebarMenuButton variant="ghost" className="h-auto w-full justify-start text-left">
+                                            <SidebarMenuButton variant="ghost" className="h-auto w-full justify-start text-left" onClick={() => setEditingSubmission(sub)}>
                                                 <div className="flex flex-col">
                                                     <span>{sub.studentName}</span>
                                                     <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.score}%</span>
@@ -174,20 +196,37 @@ export default function DashboardLayout({
                                                     Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : ''}
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
-                                            <ScrollArea className="max-h-[50vh]">
+                                            <ScrollArea className="max-h-[60vh]">
                                                 <div className="space-y-4 p-1">
-                                                    <div>
-                                                        <h4 className="font-semibold mb-2">AI-Assessed Score: {sub.score}%</h4>
-                                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md border">{sub.feedback}</p>
+                                                    <div className="grid grid-cols-1 gap-4">
+                                                        <div>
+                                                            <Label htmlFor="score">AI-Assessed Score</Label>
+                                                            <Input 
+                                                                id="score"
+                                                                type="number"
+                                                                value={editableScore}
+                                                                onChange={(e) => setEditableScore(e.target.value)}
+                                                                className="font-bold text-lg"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label htmlFor="feedback">Feedback</Label>
+                                                            <Textarea
+                                                                id="feedback"
+                                                                value={editableFeedback}
+                                                                onChange={(e) => setEditableFeedback(e.target.value)}
+                                                                className="min-h-[150px]"
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-semibold mb-2">Submitted Code:</h4>
+                                                        <h4 className="font-semibold mb-2 mt-4">Submitted Code:</h4>
                                                         <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{sub.solutionCode}</code></pre>
                                                     </div>
                                                 </div>
                                             </ScrollArea>
                                             <AlertDialogFooter>
-                                                <AlertDialogCancel>Close</AlertDialogCancel>
+                                                <AlertDialogCancel onClick={() => setEditingSubmission(null)}>Close</AlertDialogCancel>
                                                 {!sub.isPublished ? (
                                                     <Button onClick={() => handlePublishScore(sub)} disabled={isPublishing === sub.id}>
                                                         {isPublishing === sub.id ? 'Publishing...' : <><Send className="mr-2 h-4 w-4" /> Publish Score</>}
@@ -202,7 +241,7 @@ export default function DashboardLayout({
                               ))}
                               </ScrollArea>
                           ) : (
-                               <div className="p-2 text-center text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                               <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg group-data-[collapsible=icon]:hidden">
                                   No submissions yet.
                                </div>
                           )}
@@ -250,5 +289,3 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
-
-    
