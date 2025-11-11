@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -60,7 +61,6 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
         ? query(
             collection(firestore, `users/${user.uid}/assignments`),
             where('status', 'in', ['assigned', 'submitted', 'completed']),
-            orderBy('status'),
             orderBy('dueDate', 'asc')
           )
         : null,
@@ -76,8 +76,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
         const now = new Date();
         const scheduledQuery = query(
             collection(firestore, `users/${user.uid}/assignments`),
-            where('status', '==', 'scheduled'),
-            where('scheduledAt', '<=', now)
+            where('status', '==', 'scheduled')
         );
 
         try {
@@ -86,7 +85,10 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
             const batch = writeBatch(firestore);
             scheduledDocs.forEach(docSnap => {
-                batch.update(docSnap.ref, { status: 'assigned' });
+                const assignment = docSnap.data();
+                if (assignment.scheduledAt && assignment.scheduledAt.toDate() <= now) {
+                    batch.update(docSnap.ref, { status: 'assigned' });
+                }
             });
 
             await batch.commit();

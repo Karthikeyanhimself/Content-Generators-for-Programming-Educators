@@ -54,13 +54,13 @@ service cloud.firestore {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
-    }
-    
-    /**
-     * @description Educator's student roster. Only the educator can manage their own roster.
-     */
-    match /users/{userId}/students/{studentId} {
-      allow read, list, write, delete: if isOwner(userId);
+
+      /**
+       * @description Educator's student roster. Only the educator can manage their own roster.
+       */
+      match /students/{studentId} {
+        allow read, list, write, delete: if isOwner(userId);
+      }
     }
     
     /**
@@ -94,6 +94,24 @@ service cloud.firestore {
       allow get, list: if true;
       allow create: if request.auth != null; // Allow authenticated users (educators or SYSTEM) to create
       allow update, delete: if false;
+
+      /**
+       * @description Controls access to hint documents. Hints are readable, but write access is denied.
+       */
+      match /hints/{hintId} {
+        allow get, list: if true;
+        allow create: if request.auth != null; // Allow scenario creator to add hints.
+        allow update, delete: if false;
+      }
+
+      /**
+       * @description Controls access to test case documents. Test cases are readable, but write access is denied.
+       */
+      match /testCases/{testCaseId} {
+        allow get, list: if true;
+        allow create: if request.auth != null; // Allow scenario creator to add test cases.
+        allow update, delete: if false;
+      }
     }
 
     /**
@@ -120,24 +138,6 @@ service cloud.firestore {
     // Rule for LISTING submissions
     match /educators/{educatorId}/submissions {
         allow list: if request.auth != null && request.auth.uid == educatorId;
-    }
-
-    /**
-     * @description Controls access to hint documents. Hints are readable, but write access is denied.
-     */
-    match /scenarios/{scenarioId}/hints/{hintId} {
-      allow get, list: if true;
-      allow create: if request.auth != null; // Allow scenario creator to add hints.
-      allow update, delete: if false;
-    }
-
-    /**
-     * @description Controls access to test case documents. Test cases are readable, but write access is denied.
-     */
-    match /scenarios/{scenarioId}/testCases/{testCaseId} {
-      allow get, list: if true;
-      allow create: if request.auth != null; // Allow scenario creator to add test cases.
-      allow update, delete: if false;
     }
   }
 }
