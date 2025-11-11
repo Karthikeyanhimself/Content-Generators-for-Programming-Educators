@@ -29,7 +29,8 @@ import {
   serverTimestamp,
   orderBy,
   updateDoc,
-  writeBatch
+  writeBatch,
+  doc
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader, Send, Calendar as CalendarIcon, Users, BrainCircuit, BookCopy, Check, ChevronsUpDown } from 'lucide-react';
@@ -38,6 +39,7 @@ import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { format } from 'date-fns';
 
 
 type Student = {
@@ -318,7 +320,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       {/* Right Column */}
       <div className="space-y-8">
-        <Card className="bg-gradient-to-br from-primary/10 to-transparent">
+        <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
@@ -338,3 +340,5 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
+
+    
