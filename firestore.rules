@@ -52,8 +52,34 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
-      allow update, create: if isOwner(userId);
+      allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
+
+       /**
+       * @description Controls access to assignment documents.
+       */
+      match /assignments/{assignmentId} {
+        // READ (Single Doc): A user can only read their own assignments.
+        allow get: if isOwner(userId);
+        
+        // CREATE:
+        // 1. A user can create their own assignment (student self-assigning, educator drafting).
+        // 2. An educator can create an assignment for a student they can read.
+        allow create: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
+        
+        // UPDATE:
+        // A student can update their own assignment (e.g., to submit it).
+        // An educator can update a student's assignment (e.g., to publish a score).
+        allow update: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
+
+        // DELETE: Only the owner can delete their assignments.
+        allow delete: if isOwner(userId);
+      }
+
+      // LIST (Collection Query): A user can only list their own assignments.
+      match /assignments {
+        allow list: if isOwner(userId);
+      }
     }
     
     /**
@@ -65,7 +91,7 @@ service cloud.firestore {
 
     /**
      * @description Securely maps emails to UIDs. Allows any authenticated user to read,
-     * and users to create their own email-to-UID mapping. This is the crucial lookup step for an educator.
+     * and users to create their own mapping. This is the crucial lookup step for an educator.
      */
     match /users-by-email/{email} {
       allow get: if request.auth != null;
@@ -85,35 +111,13 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to assignment documents.
-     */
-    match /users/{userId}/assignments/{assignmentId} {
-      // READ: A user can only read their own assignments.
-      allow get, list: if isOwner(userId);
-      
-      // CREATE:
-      // 1. A user can create their own assignment (student self-assigning, educator drafting).
-      // 2. An educator can create an assignment for a student they can read.
-      allow create: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
-      
-      // UPDATE:
-      // A student can update their own assignment (e.g., to submit it or when it's activated from 'scheduled').
-      // An educator can update a student's assignment (e.g., to publish a score).
-      allow update: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
-
-      // DELETE: Only the owner can delete their assignments.
-      allow delete: if isOwner(userId);
-    }
-
-    /**
      * @description Denormalized submissions for easy educator querying.
-     * - An educator can read/list their own submissions.
-     * - A student can create a submission record only if the educatorId matches the one on their original assignment.
-     * - An educator can update a submission record (e.g. to mark as published).
+     * Separates collection-level rules (list) from document-level rules (get, update, create).
      */
     match /educators/{educatorId}/submissions/{submissionId} {
-      // READ: An educator can read/list submissions only from their own submissions collection.
-      allow get, list: if request.auth != null && request.auth.uid == educatorId;
+
+      // GET (Single Document Read): An educator can read a single submission from their collection.
+      allow get: if request.auth != null && request.auth.uid == educatorId;
 
       function isStudentTheSubmitter() {
         return request.auth != null && request.resource.data.studentId == request.auth.uid;
@@ -124,10 +128,18 @@ service cloud.firestore {
         return get(originalAssignmentPath).data.educatorId == educatorId;
       }
 
+      // CREATE: A student can create a submission record in the correct educator's collection.
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
-      // UPDATE: An educator can only update submissions in their own collection.
+
+      // UPDATE: An educator can only update submissions in their own collection (e.g., to publish).
       allow update: if request.auth != null && request.auth.uid == educatorId;
+      
       allow delete: if false;
+    }
+    
+    // Rule for LISTING submissions
+    match /educators/{educatorId}/submissions {
+        allow list: if request.auth != null && request.auth.uid == educatorId;
     }
 
 
