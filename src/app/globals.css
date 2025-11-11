@@ -7,6 +7,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Fix for number input hover color */
+input[type="number"]:hover {
+  cursor: auto;
+  background-color: transparent !important;
+}
+
 @layer base {
   :root {
     --background: 240 10% 97.5%; /* Light Gray */
