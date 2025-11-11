@@ -24,7 +24,7 @@
  * - **Exception**: An educator can read a student's profile if that user's role is 'student'.
  * - `users-by-email` allows any authenticated user to find a student's UID by email.
  * - Scenarios are publicly readable, but write access is restricted.
- * - Assignments are owned by the student.
+ * - Assignments are owned by the student, but can be created by an educator.
  * - Listing all users is disallowed for security reasons.
  */
 rules_version = '2';
@@ -52,7 +52,9 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
-      allow write: if isOwner(userId);
+      allow update, delete: if isOwner(userId);
+      // Let anyone create their own user document
+      allow create: if request.auth != null;
       allow list: if false; // Prevent listing all users.
 
       /**
@@ -62,21 +64,20 @@ service cloud.firestore {
         allow read, list, write, delete: if isOwner(userId);
       }
     }
-    
+
     /**
-     * @description Controls access to assignment documents. A user can fully manage their own assignments.
+     * @description Controls access to assignment documents.
+     * - A user can manage their own assignments.
+     * - An educator can create an assignment for a student.
      */
     match /users/{userId}/assignments/{assignmentId} {
-      allow read, write, create, delete: if isOwner(userId);
+        allow read, list: if isOwner(userId);
+        // Allow user to update/delete their own assignment
+        allow update, delete: if isOwner(userId);
+        // Allow educator to create assignment for student
+        allow create: if isOwner(userId) || (isEducator() && request.resource.data.educatorId == request.auth.uid);
     }
     
-    /**
-     * @description Allows a user to LIST their own assignments.
-     */
-    match /users/{userId}/assignments {
-      allow list: if isOwner(userId);
-    }
-
     /**
      * @description Securely maps emails to UIDs. Allows any authenticated user to read,
      * and users to create their own mapping. This is the crucial lookup step for an educator.
@@ -94,7 +95,7 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId} {
       allow get, list: if true;
-      allow create: if request.auth != null; // Allow authenticated users (educators or SYSTEM) to create
+      allow create: if isEducator(); // Allow authenticated educators to create
       allow update, delete: if false;
 
       /**
@@ -102,7 +103,7 @@ service cloud.firestore {
        */
       match /hints/{hintId} {
         allow get, list: if true;
-        allow create: if request.auth != null; // Allow scenario creator to add hints.
+        allow create: if isEducator();
         allow update, delete: if false;
       }
 
@@ -111,7 +112,7 @@ service cloud.firestore {
        */
       match /testCases/{testCaseId} {
         allow get, list: if true;
-        allow create: if request.auth != null; // Allow scenario creator to add test cases.
+        allow create: if isEducator();
         allow update, delete: if false;
       }
     }

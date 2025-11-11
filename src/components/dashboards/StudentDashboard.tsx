@@ -82,10 +82,10 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
         }
     };
     
-    if (viewMode === 'dashboard') {
+    if (userProfile && !isUserLoading) {
         activateScheduledAssignments();
     }
-  }, [user, firestore, viewMode]);
+  }, [user, firestore, userProfile, isUserLoading]);
 
 
   useEffect(() => {
