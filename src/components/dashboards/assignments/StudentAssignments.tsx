@@ -2,18 +2,50 @@
 'use client';
 
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, orderBy, query, where } from 'firebase/firestore';
+import { collection, orderBy, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { format, isPast } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader, BookCopy, Clock, Bot } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect } from 'react';
 
 
 export default function StudentAssignments() {
     const { user } = useUser();
     const firestore = useFirestore();
+
+    // This effect will run once when the component loads to activate any pending assignments.
+    useEffect(() => {
+        const activateScheduledAssignments = async () => {
+            if (!user || !firestore) return;
+
+            const now = new Date();
+            const scheduledQuery = query(
+                collection(firestore, `users/${user.uid}/assignments`),
+                where('status', '==', 'scheduled'),
+                where('scheduledAt', '<=', now)
+            );
+
+            try {
+                const scheduledDocs = await getDocs(scheduledQuery);
+                if (scheduledDocs.empty) return;
+
+                const batch = writeBatch(firestore);
+                scheduledDocs.forEach(docSnap => {
+                    batch.update(docSnap.ref, { status: 'assigned' });
+                });
+
+                await batch.commit();
+                // Data will be re-fetched by the main useCollection hook automatically
+            } catch (error) {
+                console.error("Error activating scheduled assignments:", error);
+            }
+        };
+        
+        activateScheduledAssignments();
+  }, [user, firestore]);
 
     const assignmentsQuery = useMemoFirebase(
     () =>

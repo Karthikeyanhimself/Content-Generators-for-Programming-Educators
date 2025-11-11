@@ -55,64 +55,31 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   
-  // This effect will run once when the dashboard loads to activate any pending assignments.
   useEffect(() => {
-    const activateScheduledAssignments = async () => {
-        if (!user || !firestore) return;
-
-        const now = new Date();
-        const scheduledQuery = query(
-            collection(firestore, `users/${user.uid}/assignments`),
-            where('status', '==', 'scheduled'),
-            where('scheduledAt', '<=', now)
-        );
-
-        try {
-            const scheduledDocs = await getDocs(scheduledQuery);
-            if (scheduledDocs.empty) return;
-
-            const batch = writeBatch(firestore);
-            scheduledDocs.forEach(docSnap => {
-                batch.update(docSnap.ref, { status: 'assigned' });
-            });
-
-            await batch.commit();
-        } catch (error) {
-            console.error("Error activating scheduled assignments:", error);
-        }
-    };
-    
     if (userProfile && !isUserLoading) {
-        activateScheduledAssignments();
-    }
-  }, [user, firestore, userProfile, isUserLoading]);
-
-
-  useEffect(() => {
-    if (!userProfile || isUserLoading) {
-      setViewMode('loading');
-      return;
-    }
-
-    if (userProfile.hasCompletedAssessment) {
+      if (userProfile.hasCompletedAssessment) {
         setViewMode('dashboard');
-    } else {
-       async function fetchQuiz() {
-            if (quizData) {
-                setViewMode('assessment');
-                return;
-            };
-            try {
-                const data = await generateQuizQuestions();
-                setQuizData(data);
-                setViewMode('assessment');
-            } catch (error) {
-                console.error('Failed to fetch quiz questions:', error);
-            }
+      } else {
+        async function fetchQuiz() {
+          if (quizData) {
+            setViewMode('assessment');
+            return;
+          }
+          try {
+            const data = await generateQuizQuestions();
+            setQuizData(data);
+            setViewMode('assessment');
+          } catch (error) {
+            console.error('Failed to fetch quiz questions:', error);
+            // Optionally handle the error in the UI
+          }
         }
         fetchQuiz();
+      }
+    } else {
+      setViewMode('loading');
     }
-  }, [userProfile, quizData, isUserLoading]);
+  }, [userProfile, isUserLoading, quizData]);
 
   const handleStartQuiz = () => {
     setViewMode('quiz');
