@@ -159,7 +159,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [studentsToAssign, setStudentsToAssign] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
-  const [isFixingRoster, setIsFixingRoster] = useState(false);
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
@@ -192,51 +191,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     [firestore, user]
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
-
-  const handleFixRoster = async () => {
-    if (!firestore) return;
-    setIsFixingRoster(true);
-    toast({ title: "Fixing roster...", description: "Scanning for existing student accounts." });
-
-    try {
-      const usersCollection = collection(firestore, 'users');
-      const studentQuery = query(usersCollection, where('role', '==', 'student'));
-      const querySnapshot = await getDocs(studentQuery);
-      
-      if (querySnapshot.empty) {
-        toast({ variant: 'destructive', title: "No students found", description: "There are no users with the 'student' role in the database." });
-        return;
-      }
-
-      const batch = writeBatch(firestore);
-      let studentCount = 0;
-      querySnapshot.forEach((studentDoc) => {
-        const studentData = studentDoc.data();
-        const rosterRef = doc(firestore, 'roster', studentDoc.id);
-        batch.set(rosterRef, {
-          uid: studentDoc.id,
-          email: studentData.email,
-          firstName: studentData.firstName,
-          lastName: studentData.lastName,
-        });
-        studentCount++;
-      });
-
-      await batch.commit();
-
-      toast({
-        title: "Roster Fixed!",
-        description: `Successfully added ${studentCount} student(s) to the global roster. The list will now update.`,
-      });
-
-    } catch (error) {
-      console.error("Error fixing roster:", error);
-      toast({ variant: 'destructive', title: "Roster Fix Failed", description: "Could not automatically populate the roster. Please check Firestore security rules." });
-    } finally {
-      setIsFixingRoster(false);
-    }
-  };
-
 
   const handleGenerate = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -555,15 +509,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {!studentsLoading && (!students || students.length === 0) && (
-                      <div className="p-4 mb-4 text-center text-sm text-amber-900 bg-amber-50 border-2 border-dashed border-amber-200 rounded-lg">
-                        <p className="font-bold">Your Roster is Empty</p>
-                        <p className="mb-3">Populate your roster to start assigning work.</p>
-                        <Button size="sm" onClick={handleFixRoster} disabled={isFixingRoster}>
-                          {isFixingRoster ? 'Scanning...' : 'Find & Add Existing Students'}
-                        </Button>
-                      </div>
-                    )}
                     {assignmentsLoading ? (
                         <div className="space-y-2">
                             <div className="h-12 w-full animate-pulse rounded-md bg-muted"></div>

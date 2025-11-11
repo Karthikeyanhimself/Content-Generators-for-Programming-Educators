@@ -185,11 +185,11 @@ export default function SignupPage() {
   }, [user, isSubmitting, router, firestore, fullName, email, role, academicLevel, learningGoals, languages, specialization, experience, institution]);
 
   // Effect to redirect if user is already logged in
-  useEffect(() => {
-    if (user && !isSubmitting) {
-      router.push('/dashboard');
-    }
-  }, [user, isSubmitting, router]);
+    useEffect(() => {
+        if (user && !isSubmitting) {
+            router.push('/dashboard');
+        }
+    }, [user, isSubmitting, router]);
 
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -218,12 +218,6 @@ export default function SignupPage() {
         </div>
       </div>
     );
-  }
-  
-  if (user && !isSubmitting) {
-    // If user is logged in but didn't just submit, we are about to redirect.
-    // Return a loader to prevent rendering the form while redirecting.
-    return null;
   }
 
   return (
@@ -360,5 +354,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    

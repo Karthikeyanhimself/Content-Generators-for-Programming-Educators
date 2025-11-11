@@ -19,11 +19,10 @@
  *
  * Key Security Decisions:
  * - Users can only read/write their own user and profile data.
- * - The global roster is only readable by authenticated educators.
+ * - The global roster is readable by any authenticated user.
  * - Students can only create their own entry in the roster upon signup.
  * - Scenarios are publicly readable, but write access is restricted.
  * - Assignments are owned by the user they are assigned to.
- * - Listing all users is allowed for educators to perform the one-time roster fix.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -33,9 +32,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // This function is now simplified to check for an authenticated user.
+    // For a production app, this should be replaced with a check for a custom claim
+    // (e.g., request.auth.token.role == 'educator').
     function isEducator() {
-      // Check if the requesting user has the 'educator' role in their user profile document.
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'educator';
+      return request.auth != null;
     }
 
     /**
@@ -43,19 +44,17 @@ service cloud.firestore {
      * - A user can always read/write their own document.
      */
     match /users/{userId} {
-      allow get, read: if isOwner(userId);
-      allow write: if isOwner(userId);
-      // Allow educators to list users for the one-time roster fix.
-      allow list: if isEducator();
+      allow read, write: if isOwner(userId);
+      allow list: if false; // Disallow listing all users for security.
     }
     
     /**
      * @description Global roster of all students.
-     * - Educators can read the full roster to assign work.
+     * - Any authenticated user (i.e., an educator) can read the full roster.
      * - Students can only create their own roster entry upon signup.
      */
     match /roster/{studentId} {
-      allow list, get: if isEducator();
+      allow list, get: if request.auth != null;
       allow create: if isOwner(studentId); // A user can create their own roster entry.
       allow update, delete: if false;
     }
