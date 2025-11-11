@@ -184,7 +184,7 @@ export default function AssignmentsPage() {
                                       value={editableScore}
                                       onChange={(e) => setEditableScore(e.target.value)}
                                       className="col-span-1"
-                                      disabled={editingSubmission.isPublished || isPublishing === editingSubmission.id}
+                                      disabled={editingSubmission.isPublished}
                                     />
                                   </div>
                                   <div className="grid grid-cols-4 items-start gap-4">
@@ -194,7 +194,7 @@ export default function AssignmentsPage() {
                                       value={editableFeedback}
                                       onChange={(e) => setEditableFeedback(e.target.value)}
                                       className="col-span-3 h-32"
-                                      disabled={editingSubmission.isPublished || isPublishing === editingSubmission.id}
+                                      disabled={editingSubmission.isPublished}
                                     />
                                   </div>
                                   <div className="space-y-2">
