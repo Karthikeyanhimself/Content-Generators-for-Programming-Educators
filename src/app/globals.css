@@ -91,4 +91,9 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Fix for red cursor on number input hover */
+  input[type="number"] {
+    cursor: auto;
+  }
 }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -147,10 +146,10 @@ export default function AssignmentsPage() {
                     </AlertDescription>
                     <div className="mt-4">
                       <Dialog onOpenChange={(isOpen) => {
-                        if (!isOpen) {
-                          setEditingSubmission(null);
-                        } else {
+                        if (isOpen) {
                           setEditingSubmission({ ...sub });
+                        } else {
+                          setEditingSubmission(null);
                         }
                       }}>
                         <DialogTrigger asChild>
