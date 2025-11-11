@@ -43,15 +43,6 @@ export default function AssignmentsPage() {
 
   const [isPublishing, setIsPublishing] = useState<string | null>(null);
   const [editingSubmission, setEditingSubmission] = useState<any | null>(null);
-  const [editableScore, setEditableScore] = useState<number | string>('');
-  const [editableFeedback, setEditableFeedback] = useState<string>('');
-
-  useEffect(() => {
-    if (editingSubmission) {
-      setEditableScore(editingSubmission.score);
-      setEditableFeedback(editingSubmission.feedback);
-    }
-  }, [editingSubmission]);
 
   const submissionsQuery = useMemoFirebase(
     () =>
@@ -75,8 +66,8 @@ export default function AssignmentsPage() {
       // 1. Update the student's original assignment document
       const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
       const studentUpdate = {
-        score: Number(editableScore),
-        feedback: editableFeedback,
+        score: Number(submission.score),
+        feedback: submission.feedback,
         status: 'completed' as const,
       };
       batch.update(studentAssignmentRef, studentUpdate);
@@ -85,8 +76,8 @@ export default function AssignmentsPage() {
       const educatorSubmissionRef = doc(firestore, `educators/${user.uid}/submissions`, submission.id);
       const educatorUpdate = {
         isPublished: true,
-        score: Number(editableScore),
-        feedback: editableFeedback,
+        score: Number(submission.score),
+        feedback: submission.feedback,
       };
       batch.update(educatorSubmissionRef, educatorUpdate);
 
@@ -157,7 +148,7 @@ export default function AssignmentsPage() {
                     <div className="mt-4">
                       <Dialog onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" onClick={() => setEditingSubmission(sub)}>
+                          <Button variant="outline" size="sm" onClick={() => setEditingSubmission({...sub})}>
                             <Edit className="mr-2 h-3 w-3" />
                             {sub.isPublished ? 'View Submission' : 'Review & Publish'}
                           </Button>
@@ -170,6 +161,7 @@ export default function AssignmentsPage() {
                               </DialogDescription>
                             </DialogHeader>
                               {editingSubmission && (
+                                <>
                                 <div className="space-y-4 py-4">
                                   <div className="grid grid-cols-4 items-center gap-4">
                                     <Label className="text-right">Student</Label>
@@ -180,8 +172,8 @@ export default function AssignmentsPage() {
                                     <Input
                                       id="score"
                                       type="number"
-                                      value={editableScore}
-                                      onChange={(e) => setEditableScore(e.target.value)}
+                                      value={editingSubmission.score}
+                                      onChange={(e) => setEditingSubmission({ ...editingSubmission, score: e.target.value })}
                                       className="col-span-1"
                                       disabled={editingSubmission.isPublished}
                                     />
@@ -190,8 +182,8 @@ export default function AssignmentsPage() {
                                     <Label htmlFor="feedback" className="text-right pt-2">Feedback</Label>
                                     <Textarea
                                       id="feedback"
-                                      value={editableFeedback}
-                                      onChange={(e) => setEditableFeedback(e.target.value)}
+                                      value={editingSubmission.feedback}
+                                      onChange={(e) => setEditingSubmission({ ...editingSubmission, feedback: e.target.value })}
                                       className="col-span-3 h-32"
                                       disabled={editingSubmission.isPublished}
                                     />
@@ -204,21 +196,22 @@ export default function AssignmentsPage() {
                                           </pre>
                                     </ScrollArea>
                                   </div>
-                                  <DialogFooter>
-                                    <DialogClose asChild>
-                                        <Button variant="ghost">Cancel</Button>
-                                    </DialogClose>
-                                    {!editingSubmission.isPublished && (
-                                        <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
-                                        {isPublishing === editingSubmission.id ? (
-                                            <>
-                                            <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
-                                            </>
-                                        ) : 'Save & Publish'}
-                                        </Button>
-                                    )}
-                                  </DialogFooter>
                                 </div>
+                                <DialogFooter>
+                                  <DialogClose asChild>
+                                      <Button variant="ghost">Cancel</Button>
+                                  </DialogClose>
+                                  {!editingSubmission.isPublished && (
+                                      <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
+                                      {isPublishing === editingSubmission.id ? (
+                                          <>
+                                          <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
+                                          </>
+                                      ) : 'Save & Publish'}
+                                      </Button>
+                                  )}
+                                </DialogFooter>
+                                </>
                               )}
                           </DialogContent>
                       </Dialog>
