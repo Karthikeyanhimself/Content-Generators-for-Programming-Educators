@@ -230,7 +230,7 @@ export default function ScenariosPage() {
                                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder="Search concepts..." />
-                                                <CommandList>
+                                                <CommandList className="max-h-[300px]">
                                                     <CommandEmpty>No concept found.</CommandEmpty>
                                                     <CommandGroup>
                                                         {dsaConceptOptions.map((option) => (
@@ -243,7 +243,6 @@ export default function ScenariosPage() {
                                                                             ? current.filter(c => c !== option)
                                                                             : [...current, option]
                                                                     );
-                                                                    setIsPopoverOpen(false);
                                                                 }}
                                                             >
                                                                 <FileCheck2 className={cn(
@@ -336,7 +335,3 @@ export default function ScenariosPage() {
         </>
     );
 }
-
-    
-
-    
