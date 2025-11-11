@@ -210,11 +210,11 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       const batch = writeBatch(firestore);
       let studentCount = 0;
-      querySnapshot.forEach((doc) => {
-        const studentData = doc.data();
-        const rosterRef = doc(firestore, 'roster', doc.id);
+      querySnapshot.forEach((studentDoc) => {
+        const studentData = studentDoc.data();
+        const rosterRef = doc(firestore, 'roster', studentDoc.id);
         batch.set(rosterRef, {
-          uid: doc.id,
+          uid: studentDoc.id,
           email: studentData.email,
           firstName: studentData.firstName,
           lastName: studentData.lastName,
