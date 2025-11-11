@@ -146,22 +146,28 @@ export default function AssignmentsPage() {
                       Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : 'N/A'} &bull; AI Score: {sub.score}%
                     </AlertDescription>
                     <div className="mt-4">
-                      <Dialog onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
+                      <Dialog onOpenChange={(isOpen) => {
+                        if (!isOpen) {
+                          setEditingSubmission(null);
+                        } else {
+                          setEditingSubmission({ ...sub });
+                        }
+                      }}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" onClick={() => setEditingSubmission({...sub})}>
+                          <Button variant="outline" size="sm">
                             <Edit className="mr-2 h-3 w-3" />
                             {sub.isPublished ? 'View Submission' : 'Review & Publish'}
                           </Button>
                         </DialogTrigger>
-                         <DialogContent className="sm:max-w-[625px]">
+                        <DialogContent className="sm:max-w-[625px]">
                             <DialogHeader>
                               <DialogTitle>Review Submission</DialogTitle>
                               <DialogDescription>
                                 Review the student's code, adjust the AI-generated feedback and score if needed, and publish the results.
                               </DialogDescription>
                             </DialogHeader>
-                              {editingSubmission && (
-                                <>
+                            {editingSubmission && (
+                              <>
                                 <div className="space-y-4 py-4">
                                   <div className="grid grid-cols-4 items-center gap-4">
                                     <Label className="text-right">Student</Label>
@@ -190,10 +196,10 @@ export default function AssignmentsPage() {
                                   </div>
                                   <div className="space-y-2">
                                     <Label>Submitted Code</Label>
-                                     <ScrollArea className="h-48 w-full rounded-md border p-4 bg-muted">
-                                          <pre className="text-xs text-foreground whitespace-pre-wrap">
+                                    <ScrollArea className="h-48 w-full rounded-md border p-4 bg-muted">
+                                        <pre className="text-xs text-foreground whitespace-pre-wrap">
                                             <code>{editingSubmission.solutionCode}</code>
-                                          </pre>
+                                        </pre>
                                     </ScrollArea>
                                   </div>
                                 </div>
@@ -202,18 +208,18 @@ export default function AssignmentsPage() {
                                       <Button variant="ghost">Cancel</Button>
                                   </DialogClose>
                                   {!editingSubmission.isPublished && (
-                                      <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
+                                    <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
                                       {isPublishing === editingSubmission.id ? (
-                                          <>
+                                        <>
                                           <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
-                                          </>
+                                        </>
                                       ) : 'Save & Publish'}
-                                      </Button>
+                                    </Button>
                                   )}
                                 </DialogFooter>
-                                </>
-                              )}
-                          </DialogContent>
+                              </>
+                            )}
+                        </DialogContent>
                       </Dialog>
                     </div>
                   </Alert>
