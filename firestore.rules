@@ -44,9 +44,10 @@ service cloud.firestore {
      * @description Controls access to user account documents.
      * - A user can always read/write their own document.
      * - An educator can read a student's document if the student is in their roster.
+     * - An educator can read a user's document if that user is a student (to add them to a roster).
      */
     match /users/{userId} {
-      allow read: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      allow read: if isOwner(userId) || isStudentInEducatorRoster(userId) || resource.data.role == 'student';
       allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
     }
