@@ -63,13 +63,6 @@ export default function DashboardLayout({
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
-  const rosterQuery = useMemoFirebase(
-    () => userProfile?.role === 'educator' ? query(collection(firestore, 'users', user.uid, 'students'), orderBy('firstName')) : null,
-    [firestore, userProfile, user]
-  );
-  const { data: roster, isLoading: isLoadingRoster } = useCollection(rosterQuery);
-
-
   useEffect(() => {
     setIsClient(true);
     if (!isUserLoading && !user) {
@@ -170,26 +163,38 @@ export default function DashboardLayout({
             <SidebarContent className="p-2">
                  <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip="Scenarios">
+                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip="Dashboard">
                             <Link href="/dashboard">
-                                <BrainCircuit />
-                                <span>Scenarios</span>
+                                <LayoutDashboard />
+                                <span>Dashboard</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
+                    {userProfile?.role === 'educator' && (
+                        <>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/scenarios')} tooltip="Scenarios">
+                                    <Link href="/dashboard/scenarios">
+                                        <BrainCircuit />
+                                        <span>Scenarios</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/students')} tooltip="Students">
+                                    <Link href="/dashboard/students">
+                                        <Users />
+                                        <span>Students</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </>
+                    )}
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/assignments')} tooltip="Assignments">
                             <Link href="/dashboard/assignments">
                                 <BookCopy />
                                 <span>Assignments</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/students')} tooltip="Students">
-                            <Link href="/dashboard/students">
-                                <Users />
-                                <span>Students</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

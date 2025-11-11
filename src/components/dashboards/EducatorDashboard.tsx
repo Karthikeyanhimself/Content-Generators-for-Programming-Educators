@@ -41,7 +41,8 @@ import {
   Timestamp,
   addDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  updateDoc
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader, UserPlus, Send, Calendar as CalendarIcon, FileCheck2, Edit } from 'lucide-react';
@@ -73,12 +74,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
-
-  const [addStudentEmail, setAddStudentEmail] = useState('');
-  const [foundStudent, setFoundStudent] = useState<Student | null>(null);
-  const [studentSearchError, setStudentSearchError] = useState('');
 
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -122,78 +118,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
-  const handleSearchStudent = async () => {
-    if (!addStudentEmail || !firestore) return;
-
-    setStudentSearchError('');
-    setFoundStudent(null);
-    setIsAddingStudent(true);
-
-    try {
-      // 1. Look up UID from email
-      const emailLookupRef = doc(firestore, 'users-by-email', addStudentEmail);
-      const emailDoc = await getDocs(query(collection(firestore, 'users-by-email'), where('email', '==', addStudentEmail)));
-
-      if (emailDoc.empty) {
-        setStudentSearchError('No user found with this email address.');
-        return;
-      }
-      
-      const userByEmailData = emailDoc.docs[0].data();
-      const studentUid = userByEmailData.uid;
-
-      // 2. Get student's profile
-      const studentRef = doc(firestore, 'users', studentUid);
-      const studentDoc = await getDocs(query(collection(firestore, 'users'), where('id', '==', studentUid)));
-      
-      if (!studentDoc.docs[0].exists() || studentDoc.docs[0].data().role !== 'student') {
-        setStudentSearchError('This user is not registered as a student.');
-        return;
-      }
-
-      const studentData = studentDoc.docs[0].data();
-      setFoundStudent({
-        uid: studentUid,
-        email: studentData.email,
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-      });
-
-    } catch (error) {
-      console.error('Error searching for student:', error);
-      setStudentSearchError('An error occurred while searching. Please try again.');
-    } finally {
-      setIsAddingStudent(false);
-    }
-  };
-
-  const handleAddStudentToRoster = async () => {
-    if (!foundStudent || !user || !firestore) return;
-    setIsAddingStudent(true);
-
-    try {
-      const studentInRosterRef = doc(firestore, `users/${user.uid}/students`, foundStudent.uid);
-      await setDoc(studentInRosterRef, {
-        ...foundStudent,
-        addedAt: serverTimestamp(),
-      });
-      toast({
-        title: 'Student Added',
-        description: `${foundStudent.firstName} has been added to your roster.`,
-      });
-      setAddStudentEmail('');
-      setFoundStudent(null);
-    } catch (error) {
-      console.error('Error adding student to roster:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not add student to roster.',
-      });
-    } finally {
-      setIsAddingStudent(false);
-    }
-  };
 
   const handleAssignScenario = async () => {
     if (!selectedScenario || !selectedStudent || !dueDate || !user || !firestore) {
@@ -207,9 +131,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     setIsAssigning(true);
 
     try {
-        const assignmentRef = collection(firestore, `users/${selectedStudent.uid}/assignments`);
+        const assignmentCollectionRef = collection(firestore, `users/${selectedStudent.uid}/assignments`);
         
-        const newAssignment = {
+        // Use addDoc to let Firestore generate an ID
+        const newAssignmentDoc = await addDoc(assignmentCollectionRef, {
             educatorId: user.uid,
             studentId: selectedStudent.uid,
             scenarioId: selectedScenario.id,
@@ -219,9 +144,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
             scheduledAt: scheduleDate ? Timestamp.fromDate(scheduleDate) : null,
             isAutonomouslyGenerated: false,
             createdAt: serverTimestamp(),
-        };
-
-        await addDoc(assignmentRef, newAssignment);
+        });
+        
+        // Now update the document with its own ID
+        await updateDoc(newAssignmentDoc, { id: newAssignmentDoc.id });
 
         toast({
             title: `Assignment ${scheduleDate ? 'Scheduled' : 'Assigned'}!`,
@@ -457,74 +383,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
       {/* Right Column */}
       <div className="space-y-8">
-        {/* Add Student Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Student to Roster</CardTitle>
-            <CardDescription>
-              Find a student by their email address to add them to your roster.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="student-email">Student Email</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="student-email"
-                  type="email"
-                  placeholder="student@example.com"
-                  value={addStudentEmail}
-                  onChange={(e) => setAddStudentEmail(e.target.value)}
-                />
-                <Button onClick={handleSearchStudent} disabled={isAddingStudent || !addStudentEmail}>
-                  {isAddingStudent ? <Loader className="animate-spin" /> : 'Search'}
-                </Button>
-              </div>
-              {studentSearchError && <p className="text-sm text-destructive">{studentSearchError}</p>}
-            </div>
-
-            {foundStudent && (
-              <div className="p-4 border rounded-lg bg-accent/50 space-y-4 animate-in fade-in-50">
-                <p>
-                  Found: <strong>{foundStudent.firstName} {foundStudent.lastName}</strong>
-                </p>
-                <Button className="w-full" onClick={handleAddStudentToRoster} disabled={isAddingStudent}>
-                  Add to Roster
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-         {/* Student Roster Card */}
-        <Card>
-            <CardHeader>
-                <CardTitle>Student Roster</CardTitle>
-                <CardDescription>Your currently managed students.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoadingRoster ? (
-                    <div className="flex justify-center items-center h-24">
-                        <Loader className="animate-spin text-muted-foreground"/>
-                    </div>
-                ) : roster && roster.length > 0 ? (
-                    <ScrollArea className="h-60">
-                        <div className="space-y-3 pr-4">
-                        {roster.map((s) => (
-                            <div key={s.uid} className="flex justify-between items-center text-sm p-2 rounded-md bg-background">
-                                <span>{s.firstName} {s.lastName}</span>
-                                <span className="text-muted-foreground">{s.email}</span>
-                            </div>
-                        ))}
-                        </div>
-                    </ScrollArea>
-                ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                        Your roster is empty.
-                    </div>
-                )}
-            </CardContent>
-        </Card>
+        {/* Empty placeholder for right column to maintain layout */}
       </div>
 
        {/* Edit Submission Dialog */}
