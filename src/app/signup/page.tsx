@@ -301,7 +301,7 @@ export default function SignupPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="learningGoals">Learning Goals</Label>
-                        <Textarea id="learningGoals" placeholder="e.g., Prepare for interviews, master dynamic programming" value={learningGoals} onChange={(e) => setLearningGoals(e.g.target.value)} />
+                        <Textarea id="learningGoals" placeholder="e.g., Prepare for interviews, master dynamic programming" value={learningGoals} onChange={(e) => setLearningGoals(e.target.value)} />
                       </div>
                        <div className="space-y-2">
                         <Label htmlFor="languages">Preferred Languages (comma-separated)</Label>
