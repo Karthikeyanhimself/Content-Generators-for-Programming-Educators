@@ -1,3 +1,6 @@
+
+'use client';
+
 import {
   BrainCircuit,
   Palette,
@@ -11,7 +14,10 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
+import { useUser } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +31,15 @@ import {
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
+
   const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image');
 
   const features = [
@@ -65,6 +80,17 @@ export default function Home() {
         'Our cutting-edge AI generates high-quality, unique content, ensuring you never run out of practice material.',
     },
   ];
+
+  if (isUserLoading || user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex items-center gap-3 text-lg text-muted-foreground">
+          <BrainCircuit className="h-6 w-6 animate-spin text-primary" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -244,3 +270,5 @@ export default function Home() {
     </>
   );
 }
+
+    
