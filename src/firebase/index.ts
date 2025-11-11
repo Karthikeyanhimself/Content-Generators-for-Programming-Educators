@@ -1,9 +1,17 @@
 'use client';
 
-import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
+
+const firebaseConfig = {
+  "projectId": "studio-9525667721-a1e14",
+  "appId": "1:273167695169:web:ef2ea330a643a427ab35c0",
+  "apiKey": process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  "authDomain": "studio-9525667721-a1e14.firebaseapp.com",
+  "measurementId": "",
+  "messagingSenderId": "273167695169"
+};
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
