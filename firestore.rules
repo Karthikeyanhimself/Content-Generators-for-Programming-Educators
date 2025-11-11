@@ -97,7 +97,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       
       // UPDATE:
-      // A student can update their own assignment (e.g., to submit it).
+      // A student can update their own assignment (e.g., to submit it or when it's activated from 'scheduled').
       // An educator can update a student's assignment (e.g., to publish a score).
       allow update: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
 

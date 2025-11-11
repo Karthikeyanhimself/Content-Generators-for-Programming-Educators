@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,7 +26,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Progress } from '../ui/progress';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, orderBy, query, doc, updateDoc } from 'firebase/firestore';
+import { collection, orderBy, query, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import {
@@ -70,12 +71,47 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
       user
         ? query(
             collection(firestore, `users/${user.uid}/assignments`),
+            where('status', 'in', ['assigned', 'submitted', 'completed']),
             orderBy('createdAt', 'desc')
           )
         : null,
     [firestore, user]
   );
   const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
+  
+  // This effect will run once when the dashboard loads to activate any pending assignments.
+  useEffect(() => {
+    const activateScheduledAssignments = async () => {
+        if (!user || !firestore) return;
+
+        const now = new Date();
+        const scheduledQuery = query(
+            collection(firestore, `users/${user.uid}/assignments`),
+            where('status', '==', 'scheduled'),
+            where('scheduledAt', '<=', now)
+        );
+
+        try {
+            const scheduledDocs = await getDocs(scheduledQuery);
+            if (scheduledDocs.empty) return;
+
+            const batch = writeBatch(firestore);
+            scheduledDocs.forEach(docSnap => {
+                batch.update(docSnap.ref, { status: 'assigned' });
+            });
+
+            await batch.commit();
+            // The useCollection hook will automatically pick up the change and re-render.
+        } catch (error) {
+            console.error("Error activating scheduled assignments:", error);
+        }
+    };
+    
+    if (viewMode === 'dashboard') {
+        activateScheduledAssignments();
+    }
+  }, [user, firestore, viewMode]);
+
 
   useEffect(() => {
     if (!userProfile || isUserLoading) {
@@ -461,3 +497,5 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
+
+    

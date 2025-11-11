@@ -29,7 +29,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, Search } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, Search, Clock } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -167,6 +167,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [assigningAssignment, setAssigningAssignment] = useState<any | null>(null);
   const [studentsToAssign, setStudentsToAssign] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
+  const [scheduledAt, setScheduledAt] = useState<Date | undefined>();
   const [isAssigning, setIsAssigning] = useState(false);
 
   // Student Roster State
@@ -322,36 +323,49 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
   const handleConfirmAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assigningAssignment || studentsToAssign.length === 0 || !dueDate || !user) return;
+    if (!assigningAssignment || studentsToAssign.length === 0 || !user) return;
     setIsAssigning(true);
 
     try {
-        const assignmentPromises = studentsToAssign.map(studentId => {
+        const isScheduled = !!scheduledAt && scheduledAt > new Date();
+        const batch = writeBatch(firestore);
+
+        studentsToAssign.forEach(studentId => {
             const studentAssignmentsCollection = collection(firestore, 'users', studentId, 'assignments');
             const newAssignmentRef = doc(studentAssignmentsCollection);
-            return setDoc(newAssignmentRef, {
+            
+            const assignmentData: any = {
                 id: newAssignmentRef.id,
                 educatorId: user.uid,
                 scenarioId: assigningAssignment.scenarioId,
                 studentId: studentId,
                 dueDate: dueDate,
-                status: 'assigned',
-                createdAt: serverTimestamp(),
                 dsaConcept: assigningAssignment.dsaConcept,
-            });
+                createdAt: serverTimestamp(),
+            };
+
+            if (isScheduled) {
+                assignmentData.status = 'scheduled';
+                assignmentData.scheduledAt = scheduledAt;
+            } else {
+                assignmentData.status = 'assigned';
+            }
+
+            batch.set(newAssignmentRef, assignmentData);
         });
 
-        await Promise.all(assignmentPromises);
+        await batch.commit();
 
         toast({
-            title: 'Assignments Sent!',
-            description: `Successfully assigned to ${studentsToAssign.length} student(s).`
+            title: `Assignments ${isScheduled ? 'Scheduled' : 'Sent'}!`,
+            description: `Successfully prepared assignments for ${studentsToAssign.length} student(s).`
         });
 
         // Close dialog and reset state
         setAssigningAssignment(null);
         setStudentsToAssign([]);
         setDueDate(new Date());
+        setScheduledAt(undefined);
 
     } catch (error: any) {
         console.error('Error assigning assignment:', error);
@@ -660,7 +674,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                             <DialogHeader>
                                                 <DialogTitle>Assign Scenario</DialogTitle>
                                                 <DialogDescription>
-                                                    Select students from your roster and a due date.
+                                                    Select students, a due date, and an optional send date.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <form onSubmit={handleConfirmAssignment} className="space-y-4">
@@ -691,30 +705,68 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                         </ScrollArea>
                                                     </Card>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>Due Date</Label>
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant={"outline"}
-                                                            className={cn(
-                                                                "w-full justify-start text-left font-normal",
-                                                                !dueDate && "text-muted-foreground"
-                                                            )}
-                                                            >
-                                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                                            {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
-                                                        </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto p-0">
-                                                            <Calendar
-                                                                mode="single"
-                                                                selected={dueDate}
-                                                                onSelect={setDueDate}
-                                                                initialFocus
-                                                            />
-                                                        </PopoverContent>
-                                                    </Popover>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Due Date</Label>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant={"outline"}
+                                                                className={cn(
+                                                                    "w-full justify-start text-left font-normal",
+                                                                    !dueDate && "text-muted-foreground"
+                                                                )}
+                                                                >
+                                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                                                            </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={dueDate}
+                                                                    onSelect={setDueDate}
+                                                                    initialFocus
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    </div>
+                                                     <div className="space-y-2">
+                                                        <Label>Schedule Send Date (Optional)</Label>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant={"outline"}
+                                                                className={cn(
+                                                                    "w-full justify-start text-left font-normal",
+                                                                    !scheduledAt && "text-muted-foreground"
+                                                                )}
+                                                                >
+                                                                <Clock className="mr-2 h-4 w-4" />
+                                                                {scheduledAt ? format(scheduledAt, "PPP p") : <span>Immediately</span>}
+                                                            </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={scheduledAt}
+                                                                    onSelect={setScheduledAt}
+                                                                />
+                                                                 <div className="p-2 border-t border-border">
+                                                                    <Input 
+                                                                        type="time" 
+                                                                        value={scheduledAt ? format(scheduledAt, 'HH:mm') : ''}
+                                                                        onChange={(e) => {
+                                                                            const newDate = scheduledAt || new Date();
+                                                                            const [hours, minutes] = e.target.value.split(':');
+                                                                            newDate.setHours(parseInt(hours), parseInt(minutes));
+                                                                            setScheduledAt(new Date(newDate));
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    </div>
                                                 </div>
                                                 <Button type="submit" className="w-full" disabled={isAssigning || studentsToAssign.length === 0}>
                                                     {isAssigning ? 'Assigning...' : `Confirm Assignment (${studentsToAssign.length})`}
