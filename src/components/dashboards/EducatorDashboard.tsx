@@ -224,7 +224,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
+                            <Command filter={() => 1}>
                                 <CommandInput placeholder="Search students..." />
                                 <CommandList>
                                     <CommandEmpty>No students found.</CommandEmpty>
@@ -358,5 +358,3 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
-
-    

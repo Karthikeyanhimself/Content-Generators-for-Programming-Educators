@@ -228,7 +228,7 @@ export default function ScenariosPage() {
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                            <Command>
+                                            <Command filter={() => 1}>
                                                 <CommandInput placeholder="Search concepts..." />
                                                 <CommandList>
                                                     <CommandEmpty>No concept found.</CommandEmpty>
@@ -236,6 +236,7 @@ export default function ScenariosPage() {
                                                         {dsaConceptOptions.map((option) => (
                                                             <CommandItem
                                                                 key={option}
+                                                                value={option}
                                                                 onSelect={(currentValue) => {
                                                                     setSelectedDsaConcepts(current => 
                                                                         current.includes(option) 
@@ -293,7 +294,7 @@ export default function ScenariosPage() {
                 </CardHeader>
                 <CardContent>
                      {isLoadingScenarios ? (
-                        <div className="flex h-[40vh] items-center justify-center">
+                        <div className="h-[40vh] items-center justify-center">
                             <div className="flex items-center gap-3 text-lg text-muted-foreground">
                                 <BrainCircuit className="h-6 w-6 animate-spin text-primary" />
                                 <span>Loading Scenarios...</span>
