@@ -169,57 +169,57 @@ export default function AssignmentsPage() {
                                 Review the student's code, adjust the AI-generated feedback and score if needed, and publish the results.
                               </DialogDescription>
                             </DialogHeader>
-                            {editingSubmission && editingSubmission.id === sub.id && (
-                              <div className="space-y-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                  <Label className="text-right">Student</Label>
-                                  <Input value={editingSubmission.studentName} disabled className="col-span-3" />
+                              {editingSubmission && (
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label className="text-right">Student</Label>
+                                    <Input value={editingSubmission.studentName} disabled className="col-span-3" />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="score" className="text-right">Score</Label>
+                                    <Input
+                                      id="score"
+                                      type="number"
+                                      value={editableScore}
+                                      onChange={(e) => setEditableScore(e.target.value)}
+                                      className="col-span-1"
+                                      disabled={editingSubmission.isPublished}
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-start gap-4">
+                                    <Label htmlFor="feedback" className="text-right pt-2">Feedback</Label>
+                                    <Textarea
+                                      id="feedback"
+                                      value={editableFeedback}
+                                      onChange={(e) => setEditableFeedback(e.target.value)}
+                                      className="col-span-3 h-32"
+                                      disabled={editingSubmission.isPublished}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Submitted Code</Label>
+                                     <ScrollArea className="h-48 w-full rounded-md border p-4 bg-muted">
+                                          <pre className="text-xs text-foreground whitespace-pre-wrap">
+                                            <code>{editingSubmission.solutionCode}</code>
+                                          </pre>
+                                    </ScrollArea>
+                                  </div>
+                                  <DialogFooter>
+                                    <DialogClose asChild>
+                                        <Button variant="ghost">Cancel</Button>
+                                    </DialogClose>
+                                    {!editingSubmission.isPublished && (
+                                        <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
+                                        {isPublishing === editingSubmission.id ? (
+                                            <>
+                                            <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
+                                            </>
+                                        ) : 'Save & Publish'}
+                                        </Button>
+                                    )}
+                                  </DialogFooter>
                                 </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                  <Label htmlFor="score" className="text-right">Score</Label>
-                                  <Input
-                                    id="score"
-                                    type="number"
-                                    value={editableScore}
-                                    onChange={(e) => setEditableScore(e.target.value)}
-                                    className="col-span-1"
-                                    disabled={editingSubmission.isPublished}
-                                  />
-                                </div>
-                                <div className="grid grid-cols-4 items-start gap-4">
-                                  <Label htmlFor="feedback" className="text-right pt-2">Feedback</Label>
-                                  <Textarea
-                                    id="feedback"
-                                    value={editableFeedback}
-                                    onChange={(e) => setEditableFeedback(e.target.value)}
-                                    className="col-span-3 h-32"
-                                    disabled={editingSubmission.isPublished}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Submitted Code</Label>
-                                   <ScrollArea className="h-48 w-full rounded-md border p-4 bg-muted">
-                                        <pre className="text-xs text-foreground whitespace-pre-wrap">
-                                          <code>{editingSubmission.solutionCode}</code>
-                                        </pre>
-                                  </ScrollArea>
-                                </div>
-                                <DialogFooter>
-                                  <DialogClose asChild>
-                                      <Button variant="ghost">Cancel</Button>
-                                  </DialogClose>
-                                  {!editingSubmission.isPublished && (
-                                      <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission.id}>
-                                      {isPublishing === editingSubmission.id ? (
-                                          <>
-                                          <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
-                                          </>
-                                      ) : 'Save & Publish'}
-                                      </Button>
-                                  )}
-                                </DialogFooter>
-                              </div>
-                            )}
+                              )}
                           </DialogContent>
                       </Dialog>
                     </div>
