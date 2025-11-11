@@ -238,11 +238,10 @@ export default function ScenariosPage() {
                                                                 value={option}
                                                                 onSelect={(currentValue) => {
                                                                     setSelectedDsaConcepts(current => 
-                                                                        current.includes(currentValue) 
-                                                                            ? current.filter(c => c !== currentValue)
-                                                                            : [...current, currentValue]
+                                                                        current.includes(option) 
+                                                                            ? current.filter(c => c !== option)
+                                                                            : [...current, option]
                                                                     );
-                                                                    setIsPopoverOpen(true); // Keep popover open
                                                                 }}
                                                             >
                                                                 <div className={cn(
