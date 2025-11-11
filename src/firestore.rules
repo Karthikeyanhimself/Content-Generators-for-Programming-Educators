@@ -56,18 +56,18 @@ service cloud.firestore {
       allow list: if false; // Prevent listing all users.
 
        /**
-       * @description Controls access to a single assignment document.
-       * These rules apply to get, create, update, delete operations on a specific document.
+       * @description Controls access to assignment documents.
        */
       match /assignments/{assignmentId} {
+        // A user can only get, update, delete, or create their own assignments.
         allow get, update, delete, create: if isOwner(userId);
       }
-
+      
       /**
        * @description Controls access to the assignments collection for queries.
-       * This rule specifically handles the `list` permission for the entire collection.
        */
       match /assignments {
+        // A user can only list their own assignments.
         allow list: if isOwner(userId);
       }
     }
