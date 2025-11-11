@@ -28,6 +28,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
+import { findStudentByEmail } from '@/ai/flows/find-student-by-email';
 import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, GraduationCap } from 'lucide-react';
 import {
   Accordion,
@@ -371,73 +372,51 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   }
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentEmail || !user) return;
     setIsAddingStudent(true);
-
-    const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
-    getDoc(emailLookupRef)
-        .then(emailLookupSnap => {
-            if (!emailLookupSnap.exists()) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Student Not Found',
-                    description: 'No student account exists for this email. Please ask them to sign up first.',
-                });
-                setIsAddingStudent(false);
-                return;
-            }
-
-            const { uid: studentUid } = emailLookupSnap.data();
-            const studentUserRef = doc(firestore, 'users', studentUid);
-            
-            return getDoc(studentUserRef);
-        })
-        .then(studentUserSnap => {
-            if (!studentUserSnap) return; // Chaining was broken by previous return
-
-            if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
-                toast({
-                    variant: 'destructive',
-                    title: 'Not a Student Account',
-                    description: 'The user with this email is not registered as a student.',
-                });
-                setIsAddingStudent(false);
-                return;
-            }
-
-            const studentData = studentUserSnap.data();
-            const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUserSnap.id}`);
-
-            return setDoc(rosterRef, {
-                uid: studentUserSnap.id,
-                email: studentData.email,
-                firstName: studentData.firstName,
-                lastName: studentData.lastName,
-                addedAt: serverTimestamp()
-            }, { merge: true }).then(() => studentData);
-        })
-        .then(studentData => {
-            if (!studentData) return; // Chaining broken
-
-            toast({
-                title: 'Student Added!',
-                description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
-            });
-            setNewStudentEmail('');
-        })
-        .catch(error => {
-            const permissionError = new FirestorePermissionError({
-                path: emailLookupRef.path,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        })
-        .finally(() => {
-            setIsAddingStudent(false);
+  
+    try {
+      const studentData = await findStudentByEmail({ email: newStudentEmail });
+  
+      if (studentData.error || !studentData.uid || !studentData.firstName || !studentData.lastName) {
+        toast({
+          variant: 'destructive',
+          title: 'Student Not Found',
+          description: studentData.error || 'Could not retrieve student details.',
         });
+        return;
+      }
+  
+      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentData.uid}`);
+      
+      await setDoc(rosterRef, {
+        uid: studentData.uid,
+        email: studentData.email,
+        firstName: studentData.firstName,
+        lastName: studentData.lastName,
+        addedAt: serverTimestamp()
+      }, { merge: true });
+  
+      toast({
+        title: 'Student Added!',
+        description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
+      });
+      setNewStudentEmail('');
+  
+    } catch (error: any) {
+      console.error('Error adding student:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'An unexpected error occurred while adding the student.',
+      });
+    } finally {
+      setIsAddingStudent(false);
+    }
   };
+  
 
   const handleRemoveStudent = async (studentId: string) => {
     if (!user) return;
