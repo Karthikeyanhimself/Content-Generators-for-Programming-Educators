@@ -8,4 +8,3 @@ import '@/ai/flows/generate-quiz-questions.ts';
 import '@/ai/flows/generate-study-plan.ts';
 import '@/ai/flows/assess-code-submission.ts';
 import '@/ai/flows/update-learning-goals.ts';
-import '@/ai/flows/find-student-by-email.ts';

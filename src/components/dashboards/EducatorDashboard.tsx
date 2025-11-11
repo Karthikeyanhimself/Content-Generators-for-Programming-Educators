@@ -28,7 +28,6 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { findStudentByEmail } from '@/ai/flows/find-student-by-email';
 import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, GraduationCap } from 'lucide-react';
 import {
   Accordion,
@@ -374,47 +373,71 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStudentEmail || !user) return;
+    if (!newStudentEmail || !user || !firestore) return;
     setIsAddingStudent(true);
-  
-    try {
-      const studentData = await findStudentByEmail({ email: newStudentEmail });
-  
-      if (studentData.error || !studentData.uid || !studentData.firstName || !studentData.lastName) {
-        toast({
-          variant: 'destructive',
-          title: 'Student Not Found',
-          description: studentData.error || 'Could not retrieve student details.',
+    
+    // 1. Look up the UID from the users-by-email collection
+    const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
+    const emailLookupSnap = await getDoc(emailLookupRef)
+    .catch(error => {
+        const permissionError = new FirestorePermissionError({
+            path: emailLookupRef.path,
+            operation: 'get',
         });
-        return;
-      }
-  
-      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentData.uid}`);
-      
-      await setDoc(rosterRef, {
-        uid: studentData.uid,
-        email: studentData.email,
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-        addedAt: serverTimestamp()
-      }, { merge: true });
-  
-      toast({
-        title: 'Student Added!',
-        description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
-      });
-      setNewStudentEmail('');
-  
-    } catch (error: any) {
-      console.error('Error adding student:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'An unexpected error occurred while adding the student.',
-      });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+        throw permissionError;
+    });
+
+    if (!emailLookupSnap.exists()) {
+      toast({ variant: 'destructive', title: 'Student Not Found', description: 'No user found with this email address.' });
       setIsAddingStudent(false);
+      return;
     }
+    
+    const { uid } = emailLookupSnap.data() as { uid: string };
+    
+    // 2. Look up the user profile from the users collection
+    const userRef = doc(firestore, 'users', uid);
+    const userSnap = await getDoc(userRef).catch(error => {
+         const permissionError = new FirestorePermissionError({ path: userRef.path, operation: 'get' });
+         errorEmitter.emit('permission-error', permissionError);
+         throw permissionError;
+    });
+
+    if (!userSnap.exists()) {
+      toast({ variant: 'destructive', title: 'Student Not Found', description: 'User profile not found for the given email.' });
+      setIsAddingStudent(false);
+      return;
+    }
+    
+    const studentData = userSnap.data();
+
+    if (studentData?.role !== 'student') {
+        toast({ variant: 'destructive', title: 'Not a Student', description: 'This user is not registered as a student.' });
+        setIsAddingStudent(false);
+        return;
+    }
+
+    // 3. Add the student to the educator's roster
+    const rosterRef = doc(firestore, `users/${user.uid}/students/${uid}`);
+    await setDoc(rosterRef, {
+      uid: uid,
+      email: studentData.email,
+      firstName: studentData.firstName,
+      lastName: studentData.lastName,
+      addedAt: serverTimestamp()
+    }).catch(error => {
+        const permissionError = new FirestorePermissionError({ path: rosterRef.path, operation: 'create', requestResourceData: {uid, email: studentData.email} });
+        errorEmitter.emit('permission-error', permissionError);
+        throw permissionError;
+    });
+
+    toast({
+      title: 'Student Added!',
+      description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
+    });
+    setNewStudentEmail('');
+    setIsAddingStudent(false);
   };
   
 
