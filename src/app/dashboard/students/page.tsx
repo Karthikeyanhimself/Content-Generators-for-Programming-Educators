@@ -3,16 +3,28 @@
 
 import { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, orderBy, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader, UserPlus, Users } from 'lucide-react';
+import { Loader, UserPlus, Users, Trash2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 
 type Student = {
   uid: string;
@@ -30,6 +42,7 @@ export default function StudentsPage() {
     const [addStudentEmail, setAddStudentEmail] = useState('');
     const [foundStudent, setFoundStudent] = useState<Student | null>(null);
     const [studentSearchError, setStudentSearchError] = useState('');
+    const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
     const rosterQuery = useMemoFirebase(
         () => (user ? query(collection(firestore, `users/${user.uid}/students`), orderBy('firstName')) : null),
@@ -107,6 +120,27 @@ export default function StudentsPage() {
         }
     };
 
+    const handleDeleteStudent = async () => {
+        if (!studentToDelete || !user || !firestore) return;
+
+        try {
+            const studentDocRef = doc(firestore, `users/${user.uid}/students`, studentToDelete.uid);
+            await deleteDoc(studentDocRef);
+            toast({
+                title: 'Student Removed',
+                description: `${studentToDelete.firstName} has been removed from your roster.`,
+            });
+            setStudentToDelete(null);
+        } catch (error) {
+            console.error('Error removing student:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'Could not remove the student.',
+            });
+        }
+    };
+
     return (
         <>
             <div className="flex items-center justify-between mb-8">
@@ -138,6 +172,27 @@ export default function StudentsPage() {
                                                     <p className="font-medium">{s.firstName} {s.lastName}</p>
                                                     <p className="text-muted-foreground">{s.email}</p>
                                                 </div>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setStudentToDelete(s)}>
+                                                            <Trash2 className="h-4 w-4"/>
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action will permanently remove <strong>{studentToDelete?.firstName} {studentToDelete?.lastName}</strong> from your roster. They will no longer receive assignments from you. This cannot be undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel onClick={() => setStudentToDelete(null)}>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={handleDeleteStudent} className="bg-destructive hover:bg-destructive/90">
+                                                                Yes, remove student
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             </div>
                                         ))}
                                     </div>
@@ -195,4 +250,3 @@ export default function StudentsPage() {
         </>
     );
 }
-
