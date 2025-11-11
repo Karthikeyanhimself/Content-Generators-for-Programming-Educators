@@ -31,86 +31,77 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Checks if the requesting user is an educator.
+    function userRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
     function isEducator() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'educator';
+      return isSignedIn() && userRole(request.auth.uid) == 'educator';
     }
 
-    // Checks if the target user is a student.
     function isTargetStudent(userId) {
-        return get(/databases/$(database)/documents/users/$(userId)).data.role == 'student';
+      return userRole(userId) == 'student';
     }
 
-    /**
-     * @description Controls access to user account documents.
-     * - A user can always read/write their own document.
-     * - An educator can read a student's document.
-     */
+    // =========================================
+    // USERS
+    // =========================================
     match /users/{userId} {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       allow write: if isOwner(userId);
-      allow list: if false; // Prevent listing all users.
+      allow list: if false;
 
-      /**
-       * @description Educator's student roster. Only the educator can manage their own roster.
-       */
+      // --- STUDENT ROSTER ---
       match /students/{studentId} {
         allow read, list, write, delete: if isOwner(userId);
       }
-      
-      /**
-       * @description Controls access to assignment documents. A user can fully manage their own assignments.
-       */
-      match /assignments/{assignmentId} {
-        // Read permission grants both 'get' and 'list'.
-        allow read: if isOwner(userId);
-        // Allow user to update/delete their own assignment
-        allow write: if isOwner(userId);
-        // Allow educator to create assignment for student
-        allow create: if isEducator() && request.resource.data.educatorId == request.auth.uid;
-      }
     }
     
+    // --- ASSIGNMENTS (Student's own collection) ---
+    match /users/{userId}/assignments/{assignmentId} {
+        // Student can read/write their own assignments
+        allow read, write: if isOwner(userId);
+        
+        // Educator can create an assignment for a student
+        allow create: if isEducator() && request.resource.data.educatorId == request.auth.uid;
+    }
+
+    // This rule is crucial for allowing a student to QUERY their own assignments collection.
     match /users/{userId}/assignments {
         allow list: if isOwner(userId);
     }
-    
-    /**
-     * @description Securely maps emails to UIDs. Allows any authenticated user to read,
-     * and users to create their own mapping. This is the crucial lookup step for an educator.
-     */
+
+    // =========================================
+    // USERS-BY-EMAIL
+    // =========================================
     match /users-by-email/{email} {
-      allow get: if request.auth != null;
-      // Allow a user to create their own email-to-UID mapping.
-      // The document ID (email) must match the authenticated user's email.
-      allow create: if request.auth != null && request.auth.token.email == email;
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.token.email == email;
       allow list, update, delete: if false;
     }
 
-    /**
-     * @description Controls access to scenario documents. Scenarios are publicly readable, but write access is restricted.
-     */
+    // =========================================
+    // SCENARIOS
+    // =========================================
     match /scenarios/{scenarioId} {
       allow get, list: if true;
-      allow create: if isEducator(); // Allow authenticated educators to create
+      allow create: if isEducator();
       allow update, delete: if false;
 
-      /**
-       * @description Controls access to hint documents. Hints are readable, but write access is denied.
-       */
       match /hints/{hintId} {
         allow get, list: if true;
         allow create: if isEducator();
         allow update, delete: if false;
       }
 
-      /**
-       * @description Controls access to test case documents. Test cases are readable, but write access is denied.
-       */
       match /testCases/{testCaseId} {
         allow get, list: if true;
         allow create: if isEducator();
@@ -118,30 +109,27 @@ service cloud.firestore {
       }
     }
 
-    /**
-     * @description Denormalized submissions for easy educator querying.
-     * - Educators can read/update/list their own submissions collection.
-     * - Students can create submissions in the correct educator's collection.
-     */
+    // =========================================
+    // EDUCATOR SUBMISSIONS
+    // =========================================
     match /educators/{educatorId}/submissions/{submissionId} {
       function isStudentTheSubmitter() {
-        return request.auth != null && request.resource.data.studentId == request.auth.uid;
+        return isSignedIn() && request.resource.data.studentId == request.auth.uid;
       }
 
       function doesOriginalAssignmentBelongToEducator(educatorId) {
-        let originalAssignmentPath = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
-        let assignmentDoc = get(originalAssignmentPath);
-        return assignmentDoc.data.educatorId == educatorId;
+        let path = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
+        let doc = get(path);
+        return doc.data.educatorId == educatorId;
       }
 
-      allow read, update: if request.auth != null && request.auth.uid == educatorId;
+      allow read, update: if isSignedIn() && request.auth.uid == educatorId;
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
       allow delete: if false;
     }
     
-    // Rule for LISTING submissions
     match /educators/{educatorId}/submissions {
-        allow list: if request.auth != null && request.auth.uid == educatorId;
+        allow list: if isSignedIn() && request.auth.uid == educatorId;
     }
   }
 }
