@@ -15,6 +15,7 @@
  * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
+ * - /educators/{educatorId}/submissions/{submissionId}: Denormalized submissions for easy querying.
  * - /scenarios/{scenarioId}/hints/{hintId}: Stores hints related to a specific scenario.
  * - /scenarios/{scenarioId}/testCases/{testCaseId}: Stores test cases for a specific scenario.
  *
@@ -46,8 +47,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow read: if isOwner(userId) || isStudentInEducatorRoster(userId);
-      allow create;
-      allow update, delete: if isOwner(userId);
+      allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
     }
     
@@ -55,7 +55,7 @@ service cloud.firestore {
      * @description Educator's student roster. Only the educator can manage their own roster.
      */
     match /users/{userId}/students/{studentId} {
-      allow read, list, create, write, delete: if isOwner(userId);
+      allow read, list, write, delete: if isOwner(userId);
     }
 
     /**
@@ -75,18 +75,54 @@ service cloud.firestore {
      */
     match /scenarios/{scenarioId} {
       allow get, list: if true;
-      allow create: if request.auth != null; // Allow authenticated users (educators) to create
+      allow create: if request.auth != null; // Allow authenticated users (educators or SYSTEM) to create
       allow update, delete: if false;
     }
 
     /**
-     * @description Controls access to assignment documents. Assignments are owned by the user (student or educator for drafts).
+     * @description Controls access to assignment documents.
      */
     match /users/{userId}/assignments/{assignmentId} {
-      allow get, list, update, delete: if isOwner(userId);
-      // An educator can create an assignment in a student's subcollection.
-      allow create: if request.auth != null;
+      // READ: A user can only read their own assignments.
+      allow get, list: if isOwner(userId);
+      
+      // CREATE:
+      // 1. A user can create their own assignment (student self-assigning, educator drafting).
+      // 2. An educator can create an assignment for a student in their roster.
+      allow create: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      
+      // UPDATE:
+      // A student can update their own assignment (e.g., to submit it).
+      // An educator can update a student's assignment (e.g., to publish a score).
+      allow update: if isOwner(userId) || isStudentInEducatorRoster(userId);
+
+      // DELETE: Only the owner can delete their assignments.
+      allow delete: if isOwner(userId);
     }
+
+    /**
+     * @description Denormalized submissions for easy educator querying.
+     * - An educator can read/list their own submissions.
+     * - A student can create a submission record only if the educatorId matches the one on their original assignment.
+     * - An educator can update a submission record (e.g. to mark as published).
+     */
+    match /educators/{educatorId}/submissions/{submissionId} {
+      allow read, list: if isOwner(educatorId);
+
+      function isStudentTheSubmitter() {
+        return request.auth != null && request.resource.data.studentId == request.auth.uid;
+      }
+
+      function doesOriginalAssignmentBelongToEducator(educatorId) {
+        let originalAssignmentPath = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
+        return get(originalAssignmentPath).data.educatorId == educatorId;
+      }
+
+      allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
+      allow update: if isOwner(educatorId); // Educator can update (e.g., to publish)
+      allow delete: if false;
+    }
+
 
     /**
      * @description Controls access to hint documents. Hints are readable, but write access is denied.
