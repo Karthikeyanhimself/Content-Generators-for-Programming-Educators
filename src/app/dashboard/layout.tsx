@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send, Pencil } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send, Pencil, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 export default function DashboardLayout({
@@ -60,6 +61,12 @@ export default function DashboardLayout({
     [firestore, user, userProfile]
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
+
+  const rosterQuery = useMemoFirebase(
+    () => (userProfile?.role === 'educator' ? query(collection(firestore, 'roster'), orderBy('firstName')) : null),
+    [firestore, userProfile]
+  );
+  const { data: roster, isLoading: isLoadingRoster } = useCollection(rosterQuery);
 
 
   useEffect(() => {
@@ -180,7 +187,7 @@ export default function DashboardLayout({
                           {isLoadingSubmissions && !submissions ? (
                               <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading...</p>
                           ) : submissions && submissions.length > 0 ? (
-                            <ScrollArea className="h-96">
+                            <ScrollArea className="h-72">
                               {submissions.map((sub: any) => (
                                 <SidebarMenuItem key={sub.id}>
                                    <AlertDialog open={editingSubmission?.id === sub.id} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
@@ -252,6 +259,36 @@ export default function DashboardLayout({
                                </div>
                           )}
                       </SidebarMenu>
+                  </SidebarGroup>
+                  <SidebarGroup>
+                      <SidebarGroupLabel>Student Roster</SidebarGroupLabel>
+                        <SidebarMenu>
+                            {isLoadingRoster ? (
+                                <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading Roster...</p>
+                            ) : roster && roster.length > 0 ? (
+                              <ScrollArea className="h-48">
+                                {roster.map((student: any) => (
+                                    <SidebarMenuItem key={student.id}>
+                                        <SidebarMenuButton 
+                                            variant="ghost" 
+                                            className="w-full justify-start"
+                                            tooltip={{
+                                                children: `${student.firstName} ${student.lastName} (${student.email})`,
+                                                side: 'right',
+                                            }}
+                                        >
+                                            <Users />
+                                            <span>{student.firstName} {student.lastName}</span>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                ))}
+                                </ScrollArea>
+                            ) : (
+                                <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
+                                  No students on the platform.
+                               </div>
+                            )}
+                        </SidebarMenu>
                   </SidebarGroup>
                   </>
                 )}

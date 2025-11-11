@@ -54,8 +54,8 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
             hasCompletedAssessment: true,
         });
 
-        // Add student to the educator's roster subcollection
-        const rosterRef = doc(firestore, 'users', educatorId, 'students', student.uid);
+        // Add student to the global roster
+        const rosterRef = doc(firestore, 'roster', student.uid);
         await setDoc(rosterRef, {
             uid: student.uid,
             email: student.email,
@@ -148,6 +148,16 @@ export default function SignupPage() {
               learningGoals,
               preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
             };
+
+            // Also add student to the global roster
+            const rosterRef = doc(firestore, 'roster', user.uid);
+            await setDoc(rosterRef, {
+              uid: user.uid,
+              email: user.email,
+              firstName,
+              lastName,
+            });
+
           } else if (role === 'educator') {
             profileData = {
               ...profileData,
@@ -156,11 +166,6 @@ export default function SignupPage() {
               institution,
             };
           }
-          
-           // Create a mapping from email to UID for secure lookups
-          const emailLookupRef = doc(firestore, 'users-by-email', user.email as string);
-          await setDoc(emailLookupRef, { uid: user.uid });
-
 
           // Use standard setDoc to ensure these critical writes complete.
           await setDoc(userRef, profileData);
@@ -177,7 +182,7 @@ export default function SignupPage() {
     
     createUserProfile();
 
-  }, [user, isSubmitting, router, firestore, fullName, role, academicLevel, learningGoals, languages, specialization, experience, institution]);
+  }, [user, isSubmitting, router, firestore, fullName, email, role, academicLevel, learningGoals, languages, specialization, experience, institution]);
 
   // Effect to redirect if user is already logged in
   useEffect(() => {
@@ -218,14 +223,7 @@ export default function SignupPage() {
   if (user && !isSubmitting) {
     // If user is logged in but didn't just submit, we are about to redirect.
     // Return a loader to prevent rendering the form while redirecting.
-    return (
-       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center space-y-4">
-            <BrainCircuit className="h-12 w-12 text-primary animate-pulse mx-auto" />
-            <p className="text-lg text-muted-foreground">Redirecting to dashboard...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
