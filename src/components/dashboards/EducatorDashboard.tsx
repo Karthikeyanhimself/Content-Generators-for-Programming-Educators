@@ -371,81 +371,73 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   }
 
-  const handleAddStudent = async (e: React.FormEvent) => {
+  const handleAddStudent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentEmail || !user) return;
     setIsAddingStudent(true);
 
-    try {
-      // 1. Look up student UID by email
-      const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
-      const emailLookupSnap = await getDoc(emailLookupRef);
+    const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
+    getDoc(emailLookupRef)
+        .then(emailLookupSnap => {
+            if (!emailLookupSnap.exists()) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Student Not Found',
+                    description: 'No student account exists for this email. Please ask them to sign up first.',
+                });
+                setIsAddingStudent(false);
+                return;
+            }
 
-      if (!emailLookupSnap.exists()) {
-        toast({
-          variant: 'destructive',
-          title: 'Student Not Found',
-          description: 'No student account exists for this email. Please ask them to sign up first.',
-        });
-        setIsAddingStudent(false);
-        return;
-      }
+            const { uid: studentUid } = emailLookupSnap.data();
+            const studentUserRef = doc(firestore, 'users', studentUid);
+            
+            return getDoc(studentUserRef);
+        })
+        .then(studentUserSnap => {
+            if (!studentUserSnap) return; // Chaining was broken by previous return
 
-      const { uid: studentUid } = emailLookupSnap.data();
+            if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
+                toast({
+                    variant: 'destructive',
+                    title: 'Not a Student Account',
+                    description: 'The user with this email is not registered as a student.',
+                });
+                setIsAddingStudent(false);
+                return;
+            }
 
-      // 2. Fetch the student's main profile to check their role and get their name
-      const studentUserRef = doc(firestore, 'users', studentUid);
-      const studentUserSnap = await getDoc(studentUserRef);
-      
-      if (!studentUserSnap.exists() || studentUserSnap.data().role !== 'student') {
-        toast({
-          variant: 'destructive',
-          title: 'Not a Student Account',
-          description: 'The user with this email is not registered as a student.',
-        });
-        setIsAddingStudent(false);
-        return;
-      }
-      
-      const studentData = studentUserSnap.data();
-      
-      // 3. Add student to educator's roster subcollection. This document now contains all info needed.
-      const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUid}`);
-      await setDoc(rosterRef, {
-        uid: studentUid,
-        email: studentData.email,
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-        addedAt: serverTimestamp()
-      }, { merge: true });
+            const studentData = studentUserSnap.data();
+            const rosterRef = doc(firestore, `users/${user.uid}/students/${studentUserSnap.id}`);
 
-      toast({
-        title: 'Student Added!',
-        description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
-      });
-      setNewStudentEmail('');
+            return setDoc(rosterRef, {
+                uid: studentUserSnap.id,
+                email: studentData.email,
+                firstName: studentData.firstName,
+                lastName: studentData.lastName,
+                addedAt: serverTimestamp()
+            }, { merge: true }).then(() => studentData);
+        })
+        .then(studentData => {
+            if (!studentData) return; // Chaining broken
 
-    } catch (error: any) {
-        console.error("Error adding student:", error);
-         if (error.code === 'permission-denied') {
-             errorEmitter.emit(
-                'permission-error',
-                new FirestorePermissionError({
-                    path: error.customData?.path || `users-by-email/${newStudentEmail}`,
-                    operation: 'get',
-                })
-             );
-         } else {
             toast({
-                variant: 'destructive',
-                title: 'Error Adding Student',
-                description: 'An unexpected error occurred. Check the console for details.',
+                title: 'Student Added!',
+                description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`,
             });
-         }
-    } finally {
-        setIsAddingStudent(false);
-    }
-};
+            setNewStudentEmail('');
+        })
+        .catch(error => {
+            const permissionError = new FirestorePermissionError({
+                path: emailLookupRef.path,
+                operation: 'get',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => {
+            setIsAddingStudent(false);
+        });
+  };
 
   const handleRemoveStudent = async (studentId: string) => {
     if (!user) return;
