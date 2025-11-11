@@ -1,0 +1,7 @@
+Educator login details
+221fa04685@gmail.com
+pwd: k,4105
+
+Student login:
+john.doe@gmail.com
+pwd: k,4105
