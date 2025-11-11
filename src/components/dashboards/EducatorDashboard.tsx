@@ -11,16 +11,6 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,27 +24,21 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import {
   collection,
   query,
-  where,
-  getDocs,
-  doc,
-  setDoc,
   Timestamp,
   addDoc,
   serverTimestamp,
   orderBy,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, UserPlus, Send, Calendar as CalendarIcon, FileCheck2, Edit, Users, BrainCircuit, BookCopy } from 'lucide-react';
-import { ScrollArea } from '../ui/scroll-area';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Badge } from '../ui/badge';
-import { format } from 'date-fns';
+import { Loader, Send, Calendar as CalendarIcon, Users, BrainCircuit, BookCopy, Check, ChevronsUpDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
-import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+
 
 type Student = {
   uid: string;
@@ -78,9 +62,11 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [isAssigning, setIsAssigning] = useState(false);
 
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [dueTime, setDueTime] = useState<string>('23:59'); // Default to end of day
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>();
+  const [isStudentPopoverOpen, setIsStudentPopoverOpen] = useState(false);
   
   // Fetch scenarios for assignment
   const scenariosQuery = useMemoFirebase(
@@ -98,44 +84,61 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
 
 
   const handleAssignScenario = async () => {
-    if (!selectedScenario || !selectedStudent || !dueDate || !user || !firestore) {
+    if (!selectedScenario || selectedStudents.length === 0 || !dueDate || !user || !firestore) {
         toast({
             variant: 'destructive',
             title: 'Missing Information',
-            description: 'Please select a scenario, a student, and a due date.',
+            description: 'Please select a scenario, at least one student, and a due date/time.',
         });
         return;
     }
     setIsAssigning(true);
 
     try {
-        const assignmentCollectionRef = collection(firestore, `users/${selectedStudent.uid}/assignments`);
+        const batch = writeBatch(firestore);
         
-        // Use addDoc to let Firestore generate an ID
-        const newAssignmentDoc = await addDoc(assignmentCollectionRef, {
-            educatorId: user.uid,
-            studentId: selectedStudent.uid,
-            scenarioId: selectedScenario.id,
-            dsaConcept: selectedScenario.dsaConcept,
-            status: scheduleDate ? 'scheduled' : 'assigned',
-            dueDate: Timestamp.fromDate(dueDate),
-            scheduledAt: scheduleDate ? Timestamp.fromDate(scheduleDate) : null,
-            isAutonomouslyGenerated: false,
-            createdAt: serverTimestamp(),
+        // Combine date and time
+        const [hours, minutes] = dueTime.split(':').map(Number);
+        const finalDueDate = new Date(dueDate);
+        finalDueDate.setHours(hours, minutes, 0, 0);
+
+        let finalScheduleDate: Date | undefined;
+        if (scheduleDate) {
+            finalScheduleDate = new Date(scheduleDate);
+            finalScheduleDate.setHours(0,0,0,0); // Start of day
+        }
+
+
+        selectedStudents.forEach((student) => {
+            const assignmentCollectionRef = collection(firestore, `users/${student.uid}/assignments`);
+            const newAssignmentRef = doc(assignmentCollectionRef); // Create a reference with a new ID
+            
+            batch.set(newAssignmentRef, {
+                id: newAssignmentRef.id,
+                educatorId: user.uid,
+                studentId: student.uid,
+                scenarioId: selectedScenario.id,
+                dsaConcept: selectedScenario.dsaConcept,
+                status: finalScheduleDate ? 'scheduled' : 'assigned',
+                dueDate: Timestamp.fromDate(finalDueDate),
+                scheduledAt: finalScheduleDate ? Timestamp.fromDate(finalScheduleDate) : null,
+                isAutonomouslyGenerated: false,
+                createdAt: serverTimestamp(),
+            });
         });
-        
-        // Now update the document with its own ID
-        await updateDoc(newAssignmentDoc, { id: newAssignmentDoc.id });
+
+        await batch.commit();
 
         toast({
-            title: `Assignment ${scheduleDate ? 'Scheduled' : 'Assigned'}!`,
-            description: `${selectedScenario.dsaConcept} has been assigned to ${selectedStudent.firstName}.`,
+            title: `Assignment ${finalScheduleDate ? 'Scheduled' : 'Assigned'}!`,
+            description: `${selectedScenario.dsaConcept} has been assigned to ${selectedStudents.length} student(s).`,
         });
 
         // Reset state
         setSelectedScenario(null);
-        setSelectedStudent(null);
+        setSelectedStudents([]);
         setDueDate(undefined);
+        setDueTime('23:59');
         setScheduleDate(undefined);
 
     } catch (error) {
@@ -159,7 +162,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
           <CardHeader>
             <CardTitle>Assign a New Scenario</CardTitle>
             <CardDescription>
-              Select a scenario and a student to create a new assignment.
+              Select a scenario, one or more students, and a deadline to create a new assignment.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -169,9 +172,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 <Select
                     onValueChange={(value) => setSelectedScenario(scenarios?.find(s => s.id === value) || null)}
                     disabled={isLoadingScenarios}
+                    value={selectedScenario?.id || ''}
                 >
                     <SelectTrigger>
-                        <SelectValue placeholder="Loading scenarios..." />
+                        <SelectValue placeholder={isLoadingScenarios ? "Loading scenarios..." : "Select a scenario"} />
                     </SelectTrigger>
                     <SelectContent>
                         {scenarios?.map((s) => (
@@ -182,27 +186,59 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                     </SelectContent>
                 </Select>
                </div>
-               <div className="space-y-2">
-                 <Label>Select Student</Label>
-                <Select
-                    onValueChange={(value) => setSelectedStudent(roster?.find(s => s.uid === value) || null)}
-                    disabled={isLoadingRoster || !roster || roster.length === 0}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder={isLoadingRoster ? 'Loading...' : 'Select from roster'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {roster?.map((s) => (
-                            <SelectItem key={s.uid} value={s.uid}>
-                                {s.firstName} {s.lastName}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                    <Label>Select Student(s)</Label>
+                    <Popover open={isStudentPopoverOpen} onOpenChange={setIsStudentPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={isStudentPopoverOpen}
+                                className="w-full justify-between"
+                                disabled={isLoadingRoster || !roster || roster.length === 0}
+                            >
+                                {selectedStudents.length > 0
+                                    ? `${selectedStudents.length} student(s) selected`
+                                    : (isLoadingRoster ? 'Loading...' : 'Select from roster')}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                <CommandInput placeholder="Search students..." />
+                                <CommandList>
+                                    <CommandEmpty>No students found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {roster?.map((student) => (
+                                            <CommandItem
+                                                key={student.uid}
+                                                value={`${student.firstName} ${student.lastName} ${student.email}`}
+                                                onSelect={() => {
+                                                    setSelectedStudents(current => 
+                                                        current.some(s => s.uid === student.uid)
+                                                            ? current.filter(s => s.uid !== student.uid)
+                                                            : [...current, student]
+                                                    );
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        selectedStudents.some(s => s.uid === student.uid) ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                {student.firstName} {student.lastName}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2 lg:col-span-1">
                     <Label>Due Date</Label>
                      <Popover>
                         <PopoverTrigger asChild>
@@ -227,8 +263,16 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                         </PopoverContent>
                     </Popover>
                 </div>
-                 <div className="space-y-2">
-                    <Label>Schedule Send Date (Optional)</Label>
+                 <div className="space-y-2 lg:col-span-1">
+                    <Label>Due Time</Label>
+                    <Input 
+                        type="time" 
+                        value={dueTime}
+                        onChange={(e) => setDueTime(e.target.value)}
+                    />
+                </div>
+                 <div className="space-y-2 lg:col-span-1">
+                    <Label>Schedule Date (Optional)</Label>
                      <Popover>
                         <PopoverTrigger asChild>
                         <Button
@@ -239,7 +283,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                             )}
                         >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {scheduleDate ? format(scheduleDate, "PPP") : <span>Pick a date</span>}
+                            {scheduleDate ? format(scheduleDate, "PPP") : <span>Send Later</span>}
                         </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -255,7 +299,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handleAssignScenario} disabled={isAssigning}>
+            <Button onClick={handleAssignScenario} disabled={isAssigning || selectedStudents.length === 0 || !selectedScenario || !dueDate}>
                  {isAssigning ? (
                     <>
                         <Loader className="mr-2 h-4 w-4 animate-spin"/>

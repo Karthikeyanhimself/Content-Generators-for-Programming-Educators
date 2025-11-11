@@ -21,13 +21,13 @@ import {
   GenerateStudyPlanInput,
   StudyPlan,
 } from '@/ai/flows/generate-study-plan';
-import { Loader, BrainCircuit, Check, X, Target, BookOpen, BookCopy, CalendarDays, Bot } from 'lucide-react';
+import { Loader, BrainCircuit, Check, X, Target, BookOpen, BookCopy, Clock, Bot } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Progress } from '../ui/progress';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection, orderBy, query, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, isPast } from 'date-fns';
 import { Badge } from '../ui/badge';
 import {
   AlertDialog,
@@ -371,7 +371,8 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   }
   
   if (viewMode === 'dashboard') {
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string, dueDate: any) => {
+        if (isPast(dueDate?.toDate()) && status === 'assigned') return 'destructive';
         switch (status) {
             case 'assigned':
                 return 'default';
@@ -406,7 +407,9 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                         </div>
                      ) : assignments && assignments.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {assignments.map((assignment: any) => (
+                            {assignments.map((assignment: any) => {
+                                const pastDue = isPast(assignment.dueDate.toDate()) && assignment.status === 'assigned';
+                                return (
                                 <Card key={assignment.id} className="flex flex-col">
                                     <CardHeader>
                                         <div className="flex justify-between items-center">
@@ -420,11 +423,13 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                     <CardContent className="space-y-2 flex-1">
                                          <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Due Date</span>
-                                            <span>{assignment.dueDate ? format(assignment.dueDate.toDate(), 'PPP') : 'N/A'}</span>
+                                            <span className={pastDue ? 'text-destructive font-medium' : ''}>{assignment.dueDate ? format(assignment.dueDate.toDate(), 'PPP p') : 'N/A'}</span>
                                         </div>
                                          <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Status</span>
-                                            <Badge variant={getStatusVariant(assignment.status)} className="capitalize">{assignment.status}</Badge>
+                                            <Badge variant={getStatusVariant(assignment.status, assignment.dueDate)} className="capitalize">
+                                                {pastDue ? 'Past Due' : assignment.status}
+                                            </Badge>
                                         </div>
                                         {assignment.status === 'completed' && (
                                              <div className="flex items-center justify-between text-sm font-medium pt-2">
@@ -439,9 +444,9 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                     </CardContent>
                                     <CardFooter>
                                         {assignment.status === 'assigned' || assignment.status === 'submitted' ? (
-                                            <Button className="w-full" asChild>
+                                            <Button className="w-full" asChild disabled={pastDue}>
                                                 <Link href={`/dashboard/assignment/${assignment.id}`}>
-                                                  {assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission'}
+                                                  {pastDue ? <><Clock className="mr-2 h-4 w-4"/>Past Due</> : (assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission')}
                                                 </Link>
                                             </Button>
                                         ) : (
@@ -476,7 +481,7 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                         )}
                                     </CardFooter>
                                 </Card>
-                            ))}
+                            )})}
                         </div>
                      ) : (
                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
@@ -497,5 +502,3 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
   return null;
 }
-
-    

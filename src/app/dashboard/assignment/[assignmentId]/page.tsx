@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc, addDoc, collection, getDocs, query, limit, orderBy, where } from 'firebase/firestore';
@@ -17,25 +17,27 @@ import { generateStudyPlan, StudyPlan, GenerateStudyPlanInput } from '@/ai/flows
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { BrainCircuit, Loader, Send, Lightbulb, FileCheck2, Target } from 'lucide-react';
+import { BrainCircuit, Loader, Send, Lightbulb, FileCheck2, Target, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { addDays } from 'date-fns';
+import { addDays, isPast } from 'date-fns';
 import type { AssessCodeInput, AssessCodeOutput } from '@/ai/flows/schemas';
 import type { UpdateLearningGoalsInput } from '@/ai/flows/schemas';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Timestamp } from 'firebase/firestore';
 
 type AssignmentData = {
     id: string;
     scenarioId: string;
-    status: 'assigned' | 'submitted' | 'completed';
+    status: 'assigned' | 'submitted' | 'completed' | 'scheduled';
     dsaConcept: string;
     score?: number;
     feedback?: string;
     solutionCode?: string;
     educatorId: string;
+    dueDate: Timestamp;
 };
 
 type ScenarioData = {
@@ -114,8 +116,6 @@ export default function AssignmentPage() {
             };
             const assessmentResult = await assessCodeSubmission(assessmentInput);
 
-            // Step 2: The student doesn't get a study plan immediately anymore.
-            // We just show a confirmation.
             toast({
                 title: `Submission Received!`,
                 description: "Your submission is pending review by your educator.",
@@ -124,7 +124,6 @@ export default function AssignmentPage() {
             const submittedAtTimestamp = serverTimestamp();
 
             // Step 3: Update the student's assignment document with the code and 'submitted' status.
-            // NO score or feedback is saved here.
             const studentAssignmentUpdate = {
                 solutionCode: solutionCode,
                 status: 'submitted' as const,
@@ -155,7 +154,7 @@ export default function AssignmentPage() {
                     feedback: assessmentResult.feedback,
                     solutionCode: solutionCode,
                     submittedAt: submittedAtTimestamp,
-                    isPublished: false, // NEW: Mark as not published
+                    isPublished: false,
                 };
                  addDoc(educatorSubmissionsRef, submissionRecord).catch(error => {
                     const permissionError = new FirestorePermissionError({
@@ -168,7 +167,6 @@ export default function AssignmentPage() {
                 });
             }
             
-            // Redirect user to dashboard after submission.
             router.push('/dashboard');
 
         } catch (error) {
@@ -185,13 +183,8 @@ export default function AssignmentPage() {
         }
     };
     
-    const handleCloseDialog = () => {
-        setSubmissionResult(null);
-        router.push('/dashboard');
-    }
-
     const isLoading = isUserLoading || isAssignmentLoading || isScenarioLoading || areHintsLoading || areTestCasesLoading;
-
+    
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -210,9 +203,10 @@ export default function AssignmentPage() {
             </div>
         );
     }
-
+    
     const isSubmitted = assignmentData.status === 'submitted';
     const isCompleted = assignmentData.status === 'completed';
+    const isPastDue = isPast(assignmentData.dueDate.toDate());
 
     return (
         <div className="container mx-auto max-w-4xl py-8">
@@ -290,7 +284,6 @@ export default function AssignmentPage() {
                         )}
                     </Accordion>
 
-
                     {isCompleted || isSubmitted ? (
                          <Alert>
                             <AlertTitle className="font-headline text-xl">
@@ -299,7 +292,7 @@ export default function AssignmentPage() {
                             <AlertDescription className="space-y-4">
                                {isCompleted ? (
                                 <>
-                                   <p>You have already completed this assignment. {assignmentData.score !== undefined ? `You received a score of <strong>${assignmentData.score}%</strong>.` : 'Your score is pending publication.'}</p>
+                                   <p dangerouslySetInnerHTML={{ __html: `You have already completed this assignment. ${assignmentData.score !== undefined ? `You received a score of <strong>${assignmentData.score}%</strong>.` : 'Your score is pending publication.'}` }} />
                                     <div>
                                         <h4 className="font-semibold mb-2">Your Submitted Code:</h4>
                                         <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignmentData.solutionCode}</code></pre>
@@ -317,7 +310,16 @@ export default function AssignmentPage() {
                                  <Button onClick={() => router.push('/dashboard')} className="mt-4">Back to Dashboard</Button>
                             </AlertDescription>
                         </Alert>
-                    ): (
+                    ) : isPastDue ? (
+                        <Alert variant="destructive">
+                            <Clock className="h-4 w-4" />
+                            <AlertTitle className="font-headline text-xl">Assignment Past Due</AlertTitle>
+                            <AlertDescription>
+                                The deadline for this assignment has passed. You can no longer submit a solution.
+                                 <Button onClick={() => router.push('/dashboard')} className="mt-4 w-full">Back to Dashboard</Button>
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="space-y-2">
                                 <label htmlFor="solution-code" className="text-lg font-semibold">Your Solution</label>
