@@ -52,9 +52,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
-      allow update, delete: if isOwner(userId);
-      // Let anyone create their own user document
-      allow create: if request.auth != null;
+      allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
 
       /**
@@ -63,19 +61,22 @@ service cloud.firestore {
       match /students/{studentId} {
         allow read, list, write, delete: if isOwner(userId);
       }
-    }
-
-    /**
-     * @description Controls access to assignment documents.
-     * - A user can manage their own assignments.
-     * - An educator can create an assignment for a student.
-     */
-    match /users/{userId}/assignments/{assignmentId} {
-        allow read, list: if isOwner(userId);
+      
+      /**
+       * @description Controls access to assignment documents. A user can fully manage their own assignments.
+       */
+      match /assignments/{assignmentId} {
+        // Read permission grants both 'get' and 'list'.
+        allow read: if isOwner(userId);
         // Allow user to update/delete their own assignment
-        allow update, delete: if isOwner(userId);
+        allow write: if isOwner(userId);
         // Allow educator to create assignment for student
-        allow create: if isOwner(userId) || (isEducator() && request.resource.data.educatorId == request.auth.uid);
+        allow create: if isEducator() && request.resource.data.educatorId == request.auth.uid;
+      }
+    }
+    
+    match /users/{userId}/assignments {
+        allow list: if isOwner(userId);
     }
     
     /**
