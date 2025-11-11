@@ -6,11 +6,13 @@
  * and public read access for system-generated scenarios. Write access is
  * carefully controlled to ensure data integrity and prevent unauthorized
  * modifications. Authorization is primarily achieved through path-based
- * ownership.
+ * ownership, avoiding costly `get()` calls where possible, but allowing them
+ * for specific, secure cross-user lookups (like an educator reading a student's profile).
  *
  * Data Structure:
  * - /users/{userId}: Stores user account information and profile data. Document ID is the userId.
- * - /roster/{studentId}: A global list of all students on the platform.
+ * - /users/{userId}/students/{studentId}: An educator's roster of students. The studentId is the student's UID.
+ * - /users-by-email/{email}: Maps user emails to UIDs for secure lookups.
  * - /scenarios/{scenarioId}: Stores system-generated programming scenarios, publicly readable.
  * - /users/{userId}/assignments/{assignmentId}: Stores assignments assigned to a user.
  * - /educators/{educatorId}/submissions/{submissionId}: Denormalized submissions for easy querying.
@@ -19,10 +21,11 @@
  *
  * Key Security Decisions:
  * - Users can only read/write their own user and profile data.
- * - The global roster is readable by any authenticated user.
- * - Students can only create their own entry in the roster upon signup.
+ * - **Exception**: An educator can read a student's profile if that user's role is 'student'.
+ * - `users-by-email` allows any authenticated user to find a student's UID by email.
  * - Scenarios are publicly readable, but write access is restricted.
- * - Assignments are owned by the user they are assigned to.
+ * - Assignments are owned by the student.
+ * - Listing all users is disallowed for security reasons.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -32,31 +35,44 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // This function is now simplified to check for an authenticated user.
-    // For a production app, this should be replaced with a check for a custom claim
-    // (e.g., request.auth.token.role == 'educator').
+    // Checks if the requesting user is an educator.
     function isEducator() {
-      return request.auth != null;
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'educator';
+    }
+
+    // Checks if the target user is a student.
+    function isTargetStudent(userId) {
+        return get(/databases/$(database)/documents/users/$(userId)).data.role == 'student';
     }
 
     /**
      * @description Controls access to user account documents.
      * - A user can always read/write their own document.
+     * - An educator can read a student's document.
      */
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
-      allow list: if false; // Disallow listing all users for security.
+      allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
+      allow update, create: if isOwner(userId);
+      allow list: if false; // Prevent listing all users.
     }
     
     /**
-     * @description Global roster of all students.
-     * - Any authenticated user (i.e., an educator) can read the full roster.
-     * - Students can only create their own roster entry upon signup.
+     * @description Educator's student roster. Only the educator can manage their own roster.
      */
-    match /roster/{studentId} {
-      allow list, get: if request.auth != null;
-      allow create: if isOwner(studentId); // A user can create their own roster entry.
-      allow update, delete: if false;
+    match /users/{userId}/students/{studentId} {
+      allow read, list, write, delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Securely maps emails to UIDs. Allows any authenticated user to read,
+     * and users to create their own mapping. This is the crucial lookup step for an educator.
+     */
+    match /users-by-email/{email} {
+      allow get: if request.auth != null;
+      // Allow a user to create their own email-to-UID mapping.
+      // The document ID (email) must match the authenticated user's email.
+      allow create: if request.auth != null && request.auth.token.email == email;
+      allow list, update, delete: if false;
     }
 
     /**
@@ -76,14 +92,14 @@ service cloud.firestore {
       allow get, list: if isOwner(userId);
       
       // CREATE:
-      // 1. A user can create their own assignment (educator drafting).
-      // 2. An educator can create an assignment for a student.
-      allow create: if isOwner(userId) || isEducator();
+      // 1. A user can create their own assignment (student self-assigning, educator drafting).
+      // 2. An educator can create an assignment for a student they can read.
+      allow create: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       
       // UPDATE:
       // A student can update their own assignment (e.g., to submit it).
       // An educator can update a student's assignment (e.g., to publish a score).
-      allow update: if isOwner(userId) || isEducator();
+      allow update: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
 
       // DELETE: Only the owner can delete their assignments.
       allow delete: if isOwner(userId);
@@ -132,3 +148,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

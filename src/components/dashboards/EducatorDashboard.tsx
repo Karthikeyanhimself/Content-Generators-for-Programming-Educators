@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2 } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, Search } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -136,6 +137,14 @@ const dsaConcepts = {
   ],
 };
 
+type FoundStudent = {
+  uid: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
 
 export default function EducatorDashboard({ userProfile }: { userProfile: any}) {
   const { toast } = useToast();
@@ -160,6 +169,12 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
 
+  // Student Roster State
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [searchEmail, setSearchEmail] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [foundStudent, setFoundStudent] = useState<FoundStudent | null>(null);
+
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
   const assignmentsQuery = useMemoFirebase(
@@ -175,7 +190,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
 
   const studentRosterQuery = useMemoFirebase(() => (
-    user ? query(collection(firestore, 'roster')) : null
+    user ? query(collection(firestore, 'users', user.uid, 'students'), orderBy('firstName')) : null
   ), [firestore, user]);
   const { data: students, isLoading: studentsLoading } = useCollection(studentRosterQuery);
 
@@ -361,6 +376,74 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   }
 
+  const handleSearchStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchEmail) return;
+
+    setIsSearching(true);
+    setFoundStudent(null);
+
+    try {
+      // 1. Look up user UID by email
+      const emailLookupRef = doc(firestore, 'users-by-email', searchEmail);
+      const emailDoc = await getDoc(emailLookupRef);
+
+      if (!emailDoc.exists()) {
+        toast({ variant: 'destructive', title: 'Student not found', description: `No user with email ${searchEmail} exists.`});
+        return;
+      }
+
+      const { uid } = emailDoc.data();
+
+      // 2. Look up user profile by UID
+      const userDocRef = doc(firestore, 'users', uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists() || userDoc.data()?.role !== 'student') {
+        toast({ variant: 'destructive', title: 'Not a student', description: `The user with email ${searchEmail} is not a student.`});
+        return;
+      }
+      
+      const studentData = userDoc.data();
+      setFoundStudent({
+        uid: userDoc.id,
+        email: studentData.email,
+        firstName: studentData.firstName,
+        lastName: studentData.lastName,
+        role: studentData.role
+      });
+
+    } catch (error: any) {
+      console.error('Error searching for student:', error);
+      toast({ variant: 'destructive', title: 'Search Failed', description: error.message || 'Could not perform search.' });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddStudentToRoster = async () => {
+    if (!foundStudent || !user) return;
+    
+    const rosterRef = doc(firestore, `users/${user.uid}/students`, foundStudent.uid);
+
+    try {
+        await setDoc(rosterRef, {
+            uid: foundStudent.uid,
+            email: foundStudent.email,
+            firstName: foundStudent.firstName,
+            lastName: foundStudent.lastName,
+            addedAt: serverTimestamp()
+        });
+        toast({ title: 'Student Added!', description: `${foundStudent.firstName} has been added to your roster.` });
+        setFoundStudent(null);
+        setSearchEmail('');
+        setIsAddStudentOpen(false);
+    } catch(error: any) {
+        console.error("Error adding student to roster:", error);
+        toast({ variant: 'destructive', title: 'Failed to Add Student', description: error.message || 'Could not add student to roster.' });
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied to clipboard!' });
@@ -502,11 +585,49 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
             </form>
             
             <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline text-xl">My Assignments</CardTitle>
-                    <CardDescription>
-                        Manage and track assignments you've created.
-                    </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="font-headline text-xl">My Assignments</CardTitle>
+                        <CardDescription>
+                            Manage and track assignments you've created.
+                        </CardDescription>
+                    </div>
+                     <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="sm"><UserPlus className="h-4 w-4 mr-2" /> Add Student</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Add Student to Roster</DialogTitle>
+                                <DialogDescription>
+                                    Search for a student by their email address to add them to your roster.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleSearchStudent} className="flex gap-2">
+                                <Input 
+                                    type="email" 
+                                    placeholder="student@example.com" 
+                                    value={searchEmail}
+                                    onChange={(e) => setSearchEmail(e.target.value)}
+                                    required
+                                />
+                                <Button type="submit" disabled={isSearching}>
+                                    {isSearching ? <Loader className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                </Button>
+                            </form>
+                            {foundStudent && (
+                                <Card className="mt-4">
+                                    <CardContent className="p-4 flex items-center justify-between">
+                                        <div>
+                                            <p className="font-bold">{foundStudent.firstName} {foundStudent.lastName}</p>
+                                            <p className="text-sm text-muted-foreground">{foundStudent.email}</p>
+                                        </div>
+                                        <Button onClick={handleAddStudentToRoster}>Add to Roster</Button>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </DialogContent>
+                    </Dialog>
                 </CardHeader>
                 <CardContent>
                     {assignmentsLoading ? (
@@ -539,7 +660,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                             <DialogHeader>
                                                 <DialogTitle>Assign Scenario</DialogTitle>
                                                 <DialogDescription>
-                                                    Select students and a due date to send the assignment.
+                                                    Select students from your roster and a due date.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <form onSubmit={handleConfirmAssignment} className="space-y-4">
@@ -564,7 +685,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                                         </label>
                                                                     </div>
                                                                 )) : (
-                                                                    !studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">No students in roster.</div>
+                                                                    !studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">No students in your roster. Add students to assign this.</div>
                                                                 )}
                                                             </CardContent>
                                                         </ScrollArea>
@@ -788,3 +909,5 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
+
+    

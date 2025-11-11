@@ -64,8 +64,8 @@ export default function DashboardLayout({
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
   const rosterQuery = useMemoFirebase(
-    () => (userProfile?.role === 'educator' ? query(collection(firestore, 'roster'), orderBy('firstName')) : null),
-    [firestore, userProfile]
+    () => userProfile?.role === 'educator' ? query(collection(firestore, 'users', user.uid, 'students'), orderBy('firstName')) : null,
+    [firestore, userProfile, user]
   );
   const { data: roster, isLoading: isLoadingRoster } = useCollection(rosterQuery);
 
@@ -286,7 +286,7 @@ export default function DashboardLayout({
                                 </ScrollArea>
                             ) : (
                                 <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
-                                  No students on the platform.
+                                  No students in your roster.
                                </div>
                             )}
                         </SidebarMenu>

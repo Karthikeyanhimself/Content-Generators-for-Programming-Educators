@@ -23,79 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
 const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => {
-    const students = [
-        { uid: 'sample-student-1', firstName: 'Alex', lastName: 'Doe', email: 'student1@example.com' },
-        { uid: 'sample-student-2', firstName: 'Beth', lastName: 'Smith', email: 'student2@example.com' },
-    ];
-    
-    // Create a sample scenario for the assignments
-    const scenarioRef = await addDoc(collection(firestore, 'scenarios'), {
-        theme: "Business/Real-world",
-        content: "You are tasked with optimizing inventory management for a retail company. Given a list of product sales numbers, find the most frequently sold item. If there's a tie, return any of the top items.",
-        difficulty: "Easy",
-        dsaConcept: "Array",
-        createdAt: serverTimestamp(),
-        createdBy: educatorId,
-    });
-
-
-    for (const student of students) {
-        // Create user profile document for the sample student
-        const userDocRef = doc(firestore, `users/${student.uid}`);
-        await setDoc(userDocRef, {
-            id: student.uid,
-            email: student.email,
-            role: 'student',
-            firstName: student.firstName,
-            lastName: student.lastName,
-            academicLevel: 'University',
-            learningGoals: 'Learn DSA for interviews',
-            preferredProgrammingLanguages: ['Python', 'JavaScript'],
-            hasCompletedAssessment: true,
-        });
-
-        // Add student to the global roster
-        const rosterRef = doc(firestore, 'roster', student.uid);
-        await setDoc(rosterRef, {
-            uid: student.uid,
-            email: student.email,
-            firstName: student.firstName,
-            lastName: student.lastName,
-        });
-
-
-        // Create a submitted assignment for the student (NO SCORE/FEEDBACK HERE)
-        const assignmentRef = doc(collection(firestore, `users/${student.uid}/assignments`));
-        const assignmentData = {
-            educatorId: educatorId,
-            scenarioId: scenarioRef.id,
-            studentId: student.uid,
-            dueDate: new Date(),
-            status: 'submitted' as const, // The student has submitted, but it's not "completed" yet
-            createdAt: serverTimestamp(),
-            submittedAt: serverTimestamp(),
-            dsaConcept: "Array",
-            solutionCode: "def find_top_item(sales):\n  counts = {}\n  for item in sales:\n    counts[item] = counts.get(item, 0) + 1\n  return max(counts, key=counts.get)",
-        };
-        await setDoc(assignmentRef, { id: assignmentRef.id, ...assignmentData });
-
-
-        // Create the denormalized submission record for the educator with AI assessment
-        const educatorSubmissionRef = collection(firestore, `educators/${educatorId}/submissions`);
-        const score = Math.floor(Math.random() * 30 + 70); // Random score between 70-100
-        await addDoc(educatorSubmissionRef, {
-            studentId: student.uid,
-            studentEmail: student.email,
-            studentName: `${student.firstName} ${student.lastName}`,
-            originalAssignmentId: assignmentRef.id,
-            dsaConcept: "Array",
-            score: score,
-            feedback: "A good attempt. The solution is correct but could be optimized for very large datasets using a different data structure.",
-            solutionCode: assignmentData.solutionCode,
-            submittedAt: serverTimestamp(),
-            isPublished: false, // This is a new submission for the educator to review
-        });
-    }
+    // This is a placeholder for sample data.
+    // We will create the functionality for educators to add their own students.
 };
 
 
@@ -127,11 +56,12 @@ export default function SignupPage() {
     // This effect runs when the user object is available after signup.
     // It creates the user document in Firestore.
     const createUserProfile = async () => {
-        if (user && isSubmitting && firestore) {
+        if (user && isSubmitting && firestore && email) {
           const [firstName, ...lastNameParts] = fullName.split(' ');
           const lastName = lastNameParts.join(' ');
 
           const userRef = doc(firestore, 'users', user.uid);
+          const emailLookupRef = doc(firestore, 'users-by-email', email);
           
           let profileData: any = {
             id: user.uid,
@@ -148,16 +78,6 @@ export default function SignupPage() {
               learningGoals,
               preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
             };
-
-            // Also add student to the global roster
-            const rosterRef = doc(firestore, 'roster', user.uid);
-            await setDoc(rosterRef, {
-              uid: user.uid,
-              email: user.email,
-              firstName,
-              lastName,
-            });
-
           } else if (role === 'educator') {
             profileData = {
               ...profileData,
@@ -169,6 +89,7 @@ export default function SignupPage() {
 
           // Use standard setDoc to ensure these critical writes complete.
           await setDoc(userRef, profileData);
+          await setDoc(emailLookupRef, { uid: user.uid });
           
           // For educator, seed sample students and wait for it to finish.
           if (role === 'educator') {
@@ -354,3 +275,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    

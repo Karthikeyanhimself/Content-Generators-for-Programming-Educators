@@ -65,18 +65,32 @@
         "firstName"
       ]
     },
-    "RosterStudent": {
+    "EducatorStudent": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "RosterStudent",
+      "title": "EducatorStudent",
       "type": "object",
-      "description": "A public record of a student available in the global roster.",
+      "description": "A record of a student in an educator's private roster.",
       "properties": {
         "uid": { "type": "string", "description": "The student's user ID." },
         "email": { "type": "string", "description": "The student's email." },
         "firstName": { "type": "string", "description": "The student's first name." },
-        "lastName": { "type": "string", "description": "The student's last name." }
+        "lastName": { "type": "string", "description": "The student's last name." },
+        "addedAt": { "type": "string", "format": "date-time", "description": "Timestamp when the student was added." }
       },
-      "required": ["uid", "email", "firstName", "lastName"]
+      "required": ["uid", "email", "firstName", "lastName", "addedAt"]
+    },
+    "UserByEmail": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserByEmail",
+      "description": "A mapping from a user's email to their UID for secure lookups.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID (UID)."
+        }
+      },
+      "required": ["uid"]
     },
     "Scenario": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -246,13 +260,25 @@
         }
       },
       {
-        "path": "/roster/{studentId}",
+        "path": "/users/{userId}/students/{studentId}",
         "definition": {
-          "entityName": "RosterStudent",
-          "schema": { "$ref": "#/backend/entities/RosterStudent" },
-          "description": "A global list of all students on the platform, used by educators to assign work.",
+          "entityName": "EducatorStudent",
+          "schema": { "$ref": "#/backend/entities/EducatorStudent" },
+          "description": "An educator's private roster of students.",
            "params": [
+            { "name": "userId", "description": "The educator's unique ID." },
             { "name": "studentId", "description": "The student's unique ID." }
+          ]
+        }
+      },
+       {
+        "path": "/users-by-email/{email}",
+        "definition": {
+          "entityName": "UserByEmail",
+          "schema": { "$ref": "#/backend/entities/UserByEmail" },
+          "description": "A mapping from user emails to UIDs for secure lookups by educators.",
+          "params": [
+            { "name": "email", "description": "The user's email address, used as the document ID." }
           ]
         }
       },
@@ -353,6 +379,7 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the AlgoGenius platform, emphasizing secure and scalable data management for users, scenarios, assignments, hints, and test cases. The structure prioritizes authorization independence, clarity, and predictable security rules. This design adheres to the specified principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and Rules Are Not Filters. \n\n**Authorization Independence:** Authorization is primarily achieved through path-based ownership and denormalization.  For example, assignments are stored under `/users/{userId}/assignments/{assignmentId}` facilitating straightforward ownership checks without requiring `get()` calls.  Fields like `educatorId` and `studentId` within the Assignment document ensure that the necessary information for authorization is available locally, avoiding hierarchical dependencies.\n\n**Structural Segregation:** Data with different access requirements are stored in separate collections. User data is kept under `/users/{userId}`, while scenarios are stored in a separate `/scenarios` collection. This segregation simplifies security rules by ensuring that each collection has a homogeneous security posture.\n\n**Access Modeling:** Private user data is stored using path-based ownership under the `/users/{userId}` collection.  Assignments, hints and test cases are stored as subcollections under Scenarios or Users, depending on the ownership and sharing requirements.  A new global `/roster` collection is introduced to allow educators to easily discover students without giving them broad query permissions over the main `/users` collection. This roster is populated automatically on student signup.\n\n**QAPs (Rules are not Filters):** The structure allows for secure listing operations. By storing assignments under `/users/{userId}/assignments/{assignmentId}`, listing assignments for a specific user only requires querying this collection, which is inherently secure due to the path-based ownership. A new denormalized collection `/educators/{educatorId}/submissions` is added for educators to easily and securely query all submissions from their students without complex, multi-collection queries, simplifying the educator dashboard experience. Separate collections for scenarios and user profiles further enhance the ability to apply specific security rules to different data types.\n\n**Invariants:** The structure supports integrity constraints by leveraging path-based ownership and server-side timestamping. Ownership is enforced through the document path (e.g., `/users/{userId}/assignments/{assignmentId}` ensures the assignment belongs to the specified user)."
+    "reasoning": "The Firestore data structure is designed to support the AlgoGenius platform, emphasizing secure and scalable data management for users, scenarios, assignments, hints, and test cases. The structure prioritizes authorization independence, clarity, and predictable security rules. This design adheres to the specified principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and Rules Are Not Filters. \n\n**Authorization Independence:** Authorization is primarily achieved through path-based ownership and denormalization.  For example, assignments are stored under `/users/{userId}/assignments/{assignmentId}` facilitating straightforward ownership checks without requiring `get()` calls.  Fields like `educatorId` and `studentId` within the Assignment document ensure that the necessary information for authorization is available locally, avoiding hierarchical dependencies.\n\n**Structural Segregation:** Data with different access requirements are stored in separate collections. User data is kept under `/users/{userId}`, while scenarios are stored in a separate `/scenarios` collection. This segregation simplifies security rules by ensuring that each collection has a homogeneous security posture.\n\n**Access Modeling:** An educator's list of students is stored in a private subcollection: `/users/{educatorId}/students/{studentId}`. This ensures that an educator can only access their own list of students. A new `users-by-email` collection allows educators to securely find a student's UID by their email address, which is necessary to add them to their roster, without being able to list all users on the platform.\n\n**QAPs (Rules are not Filters):** The structure allows for secure listing operations. By storing assignments under `/users/{userId}/assignments/{assignmentId}`, listing assignments for a specific user only requires querying this collection, which is inherently secure due to the path-based ownership. A denormalized collection `/educators/{educatorId}/submissions` is added for educators to easily and securely query all submissions from their students without complex, multi-collection queries, simplifying the educator dashboard experience.\n\n**Invariants:** The structure supports integrity constraints by leveraging path-based ownership and server-side timestamping. Ownership is enforced through the document path (e.g., `/users/{userId}/assignments/{assignmentId}` ensures the assignment belongs to the specified user)."
   }
 }
+    
