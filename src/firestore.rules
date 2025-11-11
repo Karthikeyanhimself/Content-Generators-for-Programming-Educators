@@ -68,6 +68,10 @@ service cloud.firestore {
       match /assignments/{assignmentId} {
         allow read, write, create, delete: if isOwner(userId);
       }
+       
+      match /assignments {
+        allow list: if isOwner(userId);
+      }
     }
 
     /**
