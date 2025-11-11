@@ -55,22 +55,19 @@ service cloud.firestore {
       allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
 
-      match /assignments/{assignmentId} {
-        allow read, write, delete: if isOwner(userId);
+      /**
+       * @description Educator's student roster. Only the educator can manage their own roster.
+       */
+      match /students/{studentId} {
+        allow read, list, write, delete: if isOwner(userId);
       }
-    }
-    
-    /**
-     * @description Educator's student roster. Only the educator can manage their own roster.
-     */
-    match /users/{userId}/students/{studentId} {
-      allow read, list, write, delete: if isOwner(userId);
     }
     
     /**
      * @description Controls access to assignment documents. A user can fully manage their own assignments.
      */
     match /users/{userId}/assignments/{assignmentId} {
+        // Read permission grants both 'get' and 'list'.
         allow read, write, create, delete: if isOwner(userId);
     }
 
@@ -93,11 +90,29 @@ service cloud.firestore {
       allow get, list: if true;
       allow create: if request.auth != null; // Allow authenticated users (educators or SYSTEM) to create
       allow update, delete: if false;
+
+      /**
+       * @description Controls access to hint documents. Hints are readable, but write access is denied.
+       */
+      match /hints/{hintId} {
+        allow get, list: if true;
+        allow create: if request.auth != null; // Allow scenario creator to add hints.
+        allow update, delete: if false;
+      }
+
+      /**
+       * @description Controls access to test case documents. Test cases are readable, but write access is denied.
+       */
+      match /testCases/{testCaseId} {
+        allow get, list: if true;
+        allow create: if request.auth != null; // Allow scenario creator to add test cases.
+        allow update, delete: if false;
+      }
     }
 
     /**
      * @description Denormalized submissions for easy educator querying.
-     * - Educators can read/update their own submissions collection.
+     * - Educators can read/update/list their own submissions collection.
      * - Students can create submissions in the correct educator's collection.
      */
     match /educators/{educatorId}/submissions/{submissionId} {
@@ -107,31 +122,14 @@ service cloud.firestore {
 
       function doesOriginalAssignmentBelongToEducator(educatorId) {
         let originalAssignmentPath = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
-        return get(originalAssignmentPath).data.educatorId == educatorId;
+        let assignmentDoc = get(originalAssignmentPath);
+        return assignmentDoc.data.educatorId == educatorId;
       }
 
       allow read, update: if request.auth != null && request.auth.uid == educatorId;
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
+      allow list: if request.auth != null && request.auth.uid == educatorId;
       allow delete: if false;
-    }
-
-
-    /**
-     * @description Controls access to hint documents. Hints are readable, but write access is denied.
-     */
-    match /scenarios/{scenarioId}/hints/{hintId} {
-      allow get, list: if true;
-      allow create: if request.auth != null; // Allow scenario creator to add hints.
-      allow update, delete: if false;
-    }
-
-    /**
-     * @description Controls access to test case documents. Test cases are readable, but write access is denied.
-     */
-    match /scenarios/{scenarioId}/testCases/{testCaseId} {
-      allow get, list: if true;
-      allow create: if request.auth != null; // Allow scenario creator to add test cases.
-      allow update, delete: if false;
     }
   }
 }
