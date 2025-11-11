@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -41,7 +42,7 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
     for (const student of students) {
         // Create user profile document for the sample student
         const userDocRef = doc(firestore, `users/${student.uid}`);
-        await setDoc(userDocRef, {
+        await setDoc(userDoc-ref, {
             id: student.uid,
             email: student.email,
             role: 'student',
@@ -351,3 +352,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    
