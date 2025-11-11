@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,15 +14,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export function Header() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   const handleLogout = () => {
-    auth.signOut();
+    if (auth) {
+      auth.signOut().then(() => {
+        router.push('/login');
+      });
+    }
   };
   
   const isDashboardPage = pathname.startsWith('/dashboard');

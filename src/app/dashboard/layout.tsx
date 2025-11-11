@@ -43,7 +43,9 @@ export default function DashboardLayout({
   
   const handleLogout = () => {
     if (auth) {
-      auth.signOut();
+      auth.signOut().then(() => {
+        router.push('/login');
+      });
     }
   };
 
