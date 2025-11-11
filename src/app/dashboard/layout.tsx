@@ -20,6 +20,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 export default function DashboardLayout({
   children,
@@ -181,14 +183,21 @@ export default function DashboardLayout({
                               {submissions.map((sub: any) => (
                                 <SidebarMenuItem key={sub.id}>
                                    <AlertDialog open={editingSubmission?.id === sub.id} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
-                                        <AlertDialogTrigger asChild>
-                                            <SidebarMenuButton variant="ghost" className="h-auto w-full justify-start text-left" onClick={() => setEditingSubmission(sub)}>
-                                                <div className="flex flex-col">
-                                                    <span>{sub.studentName}</span>
-                                                    <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.score}%</span>
-                                                </div>
-                                            </SidebarMenuButton>
-                                        </AlertDialogTrigger>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                 <AlertDialogTrigger asChild>
+                                                    <SidebarMenuButton variant="ghost" className="w-full justify-start text-left" onClick={() => setEditingSubmission(sub)}>
+                                                         <GraduationCap />
+                                                         <span className="truncate">{sub.studentName}</span>
+                                                    </SidebarMenuButton>
+                                                </AlertDialogTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" align="center" className="flex flex-col items-start p-2" >
+                                                <span className="font-bold">{sub.studentName}</span>
+                                                <span className="text-muted-foreground">{sub.dsaConcept} - {sub.score}%</span>
+                                            </TooltipContent>
+                                        </Tooltip>
+
                                         <AlertDialogContent className="max-w-2xl">
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
@@ -241,7 +250,7 @@ export default function DashboardLayout({
                               ))}
                               </ScrollArea>
                           ) : (
-                               <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg group-data-[collapsible=icon]:hidden">
+                               <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
                                   No submissions yet.
                                </div>
                           )}
