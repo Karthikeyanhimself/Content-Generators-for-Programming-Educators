@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -333,3 +334,5 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
+
+    
