@@ -61,17 +61,20 @@ service cloud.firestore {
       match /students/{studentId} {
         allow read, list, write, delete: if isOwner(userId);
       }
-      
-      /**
-       * @description Controls access to assignment documents. A user can fully manage their own assignments.
-       */
-      match /assignments/{assignmentId} {
-        allow read, write, create, delete: if isOwner(userId);
-      }
-       
-      match /assignments {
-        allow list: if isOwner(userId);
-      }
+    }
+    
+    /**
+     * @description Controls access to assignment documents. A user can fully manage their own assignments.
+     */
+    match /users/{userId}/assignments/{assignmentId} {
+      allow read, write, create, delete: if isOwner(userId);
+    }
+    
+    /**
+     * @description Allows a user to LIST their own assignments.
+     */
+    match /users/{userId}/assignments {
+      allow list: if isOwner(userId);
     }
 
     /**
