@@ -12,16 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/firebase';
 import { collection, doc, orderBy, query, updateDoc } from 'firebase/firestore';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel, AlertDialogFooter, AlertDialogTrigger, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 export default function DashboardLayout({
@@ -34,15 +25,7 @@ export default function DashboardLayout({
   const firestore = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
-  const [isPublishing, setIsPublishing] = useState<string | null>(null);
-
-  // State for editing a submission
-  const [editingSubmission, setEditingSubmission] = useState<any | null>(null);
-  const [editableScore, setEditableScore] = useState<number | string>('');
-  const [editableFeedback, setEditableFeedback] = useState<string>('');
-
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, 'users', user.uid) : null),
@@ -51,18 +34,6 @@ export default function DashboardLayout({
   
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<any>(userDocRef);
 
-  const submissionsQuery = useMemoFirebase(
-    () =>
-      user && userProfile?.role === 'educator'
-        ? query(
-            collection(firestore, `educators/${user.uid}/submissions`),
-            orderBy('submittedAt', 'desc')
-          )
-        : null,
-    [firestore, user, userProfile]
-  );
-  const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
-
   useEffect(() => {
     setIsClient(true);
     if (!isUserLoading && !user) {
@@ -70,60 +41,11 @@ export default function DashboardLayout({
     }
   }, [user, isUserLoading, router]);
   
-  // When a submission is selected for editing, populate the state
-  useEffect(() => {
-    if (editingSubmission) {
-      setEditableScore(editingSubmission.score);
-      setEditableFeedback(editingSubmission.feedback);
-    }
-  }, [editingSubmission]);
-
   const handleLogout = () => {
     if (auth) {
       auth.signOut();
     }
   };
-
-  const handlePublishScore = async (submission: any) => {
-    if (!firestore || !submission || !user) return;
-    setIsPublishing(submission.id);
-
-    try {
-      // 1. Update the student's original assignment document with the (potentially edited) score and feedback
-      const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
-      await updateDoc(studentAssignmentRef, {
-        score: Number(editableScore), // Use the editable score from state
-        feedback: editableFeedback, // Use the editable feedback from state
-        status: 'completed',
-      });
-
-      // 2. Update the denormalized submission record to mark it as published
-      const educatorSubmissionRef = doc(firestore, `educators/${user.uid}/submissions/${submission.id}`);
-      await updateDoc(educatorSubmissionRef, {
-        isPublished: true,
-        score: Number(editableScore), // Also update the score here for consistency
-        feedback: editableFeedback,
-      });
-
-      toast({
-        title: 'Score Published!',
-        description: `${submission.studentName} can now see their results.`,
-      });
-      
-      setEditingSubmission(null); // Close the dialog by resetting the state
-
-    } catch (error) {
-      console.error('Error publishing score:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Publishing Failed',
-        description: 'Could not publish the score. Please check permissions and try again.',
-      });
-    } finally {
-      setIsPublishing(null);
-    }
-  };
-
 
   const isLoading = !isClient || isUserLoading || isProfileLoading;
 

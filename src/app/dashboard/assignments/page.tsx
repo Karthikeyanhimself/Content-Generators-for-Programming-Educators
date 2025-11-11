@@ -10,6 +10,7 @@ import {
   doc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader, Edit, FileCheck2 } from 'lucide-react';
@@ -33,6 +34,9 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 export default function AssignmentsPage() {
   const { user } = useUser();
@@ -82,18 +86,35 @@ export default function AssignmentsPage() {
     setIsPublishing(submission.id);
 
     try {
+      const batch = writeBatch(firestore);
+
+      // 1. Update the student's original assignment document
       const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
-      await updateDoc(studentAssignmentRef, {
+      const studentUpdate = {
         score: Number(editableScore),
         feedback: editableFeedback,
-        status: 'completed',
-      });
-
-      const educatorSubmissionRef = doc(firestore, `educators/${user.uid}/submissions/${submission.id}`);
-      await updateDoc(educatorSubmissionRef, {
+        status: 'completed' as const,
+      };
+      batch.update(studentAssignmentRef, studentUpdate);
+      
+      // 2. Update the educator's denormalized submission record
+      const educatorSubmissionRef = doc(firestore, `educators/${user.uid}/submissions`, submission.id);
+      const educatorUpdate = {
         isPublished: true,
         score: Number(editableScore),
         feedback: editableFeedback,
+      };
+      batch.update(educatorSubmissionRef, educatorUpdate);
+
+      await batch.commit().catch(error => {
+        const permissionError = new FirestorePermissionError({
+            path: `educators/${user.uid}/submissions/${submission.id}`,
+            operation: 'write',
+            requestResourceData: { studentUpdate, educatorUpdate }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Re-throw to be caught by the outer try-catch
+        throw permissionError;
       });
 
       toast({
@@ -104,12 +125,14 @@ export default function AssignmentsPage() {
       setEditingSubmission(null);
 
     } catch (error) {
-      console.error('Error publishing score:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Publishing Failed',
-        description: 'Could not publish the score. Please check permissions and try again.',
-      });
+       if (!(error instanceof FirestorePermissionError)) {
+          console.error('Error publishing score:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Publishing Failed',
+            description: 'Could not publish the score. Please check your connection and try again.',
+          });
+       }
     } finally {
       setIsPublishing(null);
     }
@@ -136,7 +159,7 @@ export default function AssignmentsPage() {
                     <Badge variant={sub.isPublished ? 'secondary' : 'default'}>{sub.isPublished ? 'Published' : 'Pending'}</Badge>
                   </AlertTitle>
                   <AlertDescription className="mt-2 text-sm">
-                    Submitted on {format(sub.submittedAt.toDate(), 'PPP')} &bull; Score: {sub.score}%
+                    Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : 'N/A'} &bull; Score: {sub.score}%
                   </AlertDescription>
                   <div className="mt-4">
                     <Dialog onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
@@ -153,7 +176,7 @@ export default function AssignmentsPage() {
                               Review the student's code, adjust the AI-generated feedback and score if needed, and publish the results.
                             </DialogDescription>
                           </DialogHeader>
-                          {editingSubmission && (
+                          {editingSubmission && editingSubmission.id === sub.id && (
                             <div className="grid gap-4 py-4">
                               <div className="grid grid-cols-4 items-center gap-4">
                                 <Label className="text-right">Student</Label>
