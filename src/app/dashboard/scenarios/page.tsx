@@ -244,12 +244,10 @@ export default function ScenariosPage() {
                                                                     );
                                                                 }}
                                                             >
-                                                                <div className={cn(
-                                                                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                                    selectedDsaConcepts.includes(option) ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible"
-                                                                )}>
-                                                                    <FileCheck2 className="h-3 w-3" />
-                                                                </div>
+                                                                <FileCheck2 className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    selectedDsaConcepts.includes(option) ? "opacity-100" : "opacity-0"
+                                                                )} />
                                                                 {option}
                                                             </CommandItem>
                                                         ))}
