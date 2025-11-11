@@ -67,7 +67,14 @@ service cloud.firestore {
      * @description Controls access to assignment documents. A user can fully manage their own assignments.
      */
     match /users/{userId}/assignments/{assignmentId} {
-        allow read, write: if isOwner(userId);
+        allow read, write, create, delete: if isOwner(userId);
+    }
+    
+    /**
+     * @description Rule for LISTING assignments. A user can list their own assignments.
+     */
+    match /users/{userId}/assignments {
+        allow list: if isOwner(userId);
     }
 
     /**
