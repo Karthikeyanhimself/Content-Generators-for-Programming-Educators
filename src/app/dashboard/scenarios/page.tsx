@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader, Wand2, BrainCircuit, Bot, FileCheck2 } from 'lucide-react';
+import { Loader, Wand2, BrainCircuit, Bot, FileCheck2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -26,6 +26,10 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+
 
 type Scenario = {
     id: string;
@@ -35,6 +39,13 @@ type Scenario = {
     content: string;
 };
 
+const dsaConceptOptions = [
+    "Arrays", "Strings", "Linked Lists", "Stacks", "Queues", "Hash Maps", 
+    "Trees", "Graphs", "Heaps", "Sorting", "Binary Search", "Recursion", 
+    "Dynamic Programming", "Greedy Algorithms", "Backtracking", 
+    "Bit Manipulation", "BFS", "DFS"
+];
+
 export default function ScenariosPage() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -43,9 +54,10 @@ export default function ScenariosPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [theme, setTheme] = useState('');
     const [difficulty, setDifficulty] = useState('');
-    const [dsaConcepts, setDsaConcepts] = useState('');
+    const [selectedDsaConcepts, setSelectedDsaConcepts] = useState<string[]>([]);
     const [userPrompt, setUserPrompt] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
     const scenariosQuery = useMemoFirebase(
         () => query(collection(firestore, 'scenarios'), orderBy('difficulty')),
@@ -54,7 +66,7 @@ export default function ScenariosPage() {
     const { data: scenarios, isLoading: isLoadingScenarios } = useCollection<Scenario>(scenariosQuery);
     
     const handleGenerateScenario = async () => {
-        if (!theme || !difficulty || !dsaConcepts) {
+        if (!theme || !difficulty || selectedDsaConcepts.length === 0) {
             toast({
                 variant: 'destructive',
                 title: 'Missing Fields',
@@ -70,7 +82,7 @@ export default function ScenariosPage() {
             const input: GenerateThemedScenarioInput = {
                 theme: theme as any,
                 difficulty: difficulty as any,
-                dsaConcepts: dsaConcepts.split(',').map(s => s.trim()),
+                dsaConcepts: selectedDsaConcepts,
                 userPrompt,
             };
 
@@ -112,7 +124,7 @@ export default function ScenariosPage() {
             // Reset form and close dialog
             setTheme('');
             setDifficulty('');
-            setDsaConcepts('');
+            setSelectedDsaConcepts([]);
             setUserPrompt('');
             setIsDialogOpen(false);
 
@@ -183,8 +195,68 @@ export default function ScenariosPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="dsa-concepts">DSA Concepts (comma-separated)</Label>
-                                    <Input id="dsa-concepts" value={dsaConcepts} onChange={e => setDsaConcepts(e.target.value)} placeholder="e.g., Arrays, Hash Maps, BFS" />
+                                    <Label>DSA Concepts</Label>
+                                    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-expanded={isPopoverOpen}
+                                                className="w-full justify-between font-normal h-auto min-h-10"
+                                            >
+                                                {selectedDsaConcepts.length > 0 ? (
+                                                    <div className="flex gap-1 flex-wrap">
+                                                        {selectedDsaConcepts.map((concept) => (
+                                                            <Badge
+                                                                variant="secondary"
+                                                                key={concept}
+                                                                className="mr-1 mb-1"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedDsaConcepts(prev => prev.filter(c => c !== concept));
+                                                                }}
+                                                            >
+                                                                {concept}
+                                                                <X className="ml-1 h-3 w-3" />
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground">Select concepts...</span>
+                                                )}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[450px] p-0" align="start">
+                                            <Command>
+                                                <CommandInput placeholder="Search concepts..." />
+                                                <CommandEmpty>No concept found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandList>
+                                                        {dsaConceptOptions.map((option) => (
+                                                            <CommandItem
+                                                                key={option}
+                                                                onSelect={() => {
+                                                                    setSelectedDsaConcepts(current => 
+                                                                        current.includes(option) 
+                                                                            ? current.filter(c => c !== option)
+                                                                            : [...current, option]
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <div className={cn(
+                                                                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                                                    selectedDsaConcepts.includes(option) ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible"
+                                                                )}>
+                                                                    <FileCheck2 className="h-3 w-3" />
+                                                                </div>
+                                                                {option}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandList>
+                                                </CommandGroup>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="user-prompt">Optional Prompt</Label>
