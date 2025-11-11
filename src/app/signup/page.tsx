@@ -42,7 +42,7 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
     for (const student of students) {
         // Create user profile document for the sample student
         const userDocRef = doc(firestore, `users/${student.uid}`);
-        await setDoc(userDoc-ref, {
+        await setDoc(userDocRef, {
             id: student.uid,
             email: student.email,
             role: 'student',
@@ -54,8 +54,8 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
             hasCompletedAssessment: true,
         });
 
-        // Add student to the global roster
-        const rosterRef = doc(firestore, 'roster', student.uid);
+        // Add student to the educator's roster subcollection
+        const rosterRef = doc(firestore, 'users', educatorId, 'students', student.uid);
         await setDoc(rosterRef, {
             uid: student.uid,
             email: student.email,
@@ -148,16 +148,6 @@ export default function SignupPage() {
               learningGoals,
               preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
             };
-
-            // Add student to the global roster
-            const rosterRef = doc(firestore, 'roster', user.uid);
-            await setDoc(rosterRef, {
-                uid: user.uid,
-                email: user.email,
-                firstName: firstName,
-                lastName: lastName
-            });
-
           } else if (role === 'educator') {
             profileData = {
               ...profileData,
@@ -166,6 +156,11 @@ export default function SignupPage() {
               institution,
             };
           }
+          
+           // Create a mapping from email to UID for secure lookups
+          const emailLookupRef = doc(firestore, 'users-by-email', user.email as string);
+          await setDoc(emailLookupRef, { uid: user.uid });
+
 
           // Use standard setDoc to ensure these critical writes complete.
           await setDoc(userRef, profileData);

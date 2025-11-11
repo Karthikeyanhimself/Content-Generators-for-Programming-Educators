@@ -28,7 +28,7 @@ import {
   SuggestSolutionApproachTipsInput,
   SuggestSolutionApproachTipsOutput,
 } from '@/ai/flows/suggest-solution-approach-tips';
-import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2, GraduationCap } from 'lucide-react';
+import { Loader, Lightbulb, FileCheck2, Copy, Sparkles, BookCopy, CalendarDays, PlusCircle, CalendarIcon, UserPlus, Trash2 } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -159,13 +159,9 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Roster State (Now reads from global roster)
-  const rosterQuery = useMemoFirebase(
-    () => user ? query(collection(firestore, 'roster'), orderBy('firstName')) : null,
-    [firestore, user]
-  );
-  const { data: students, isLoading: studentsLoading } = useCollection(rosterQuery);
-
+  // Roster Management
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   const difficultyLabels = ['Easy', 'Medium', 'Hard'];
 
@@ -180,6 +176,11 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     [firestore, user]
   );
   const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
+
+  const studentRosterQuery = useMemoFirebase(() => (
+    user ? query(collection(firestore, `users/${user.uid}/students`)) : null
+  ), [firestore, user]);
+  const { data: students, isLoading: studentsLoading } = useCollection(studentRosterQuery);
 
   const submissionsQuery = useMemoFirebase(
     () =>
@@ -363,6 +364,99 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   }
 
+ const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudentEmail || !user) return;
+
+    setIsAddingStudent(true);
+
+    try {
+        // Step 1: Look up the student's UID from their email.
+        const emailLookupRef = doc(firestore, 'users-by-email', newStudentEmail);
+        const emailSnap = await getDoc(emailLookupRef).catch(error => {
+             const permissionError = new FirestorePermissionError({ path: emailLookupRef.path, operation: 'get' });
+             errorEmitter.emit('permission-error', permissionError);
+             throw permissionError;
+        });
+
+
+        if (!emailSnap.exists()) {
+            throw new Error("Student with this email does not exist.");
+        }
+        const { uid } = emailSnap.data();
+
+        // Step 2: Look up the student's profile to get their name.
+        const userRef = doc(firestore, 'users', uid);
+        const userSnap = await getDoc(userRef).catch(error => {
+             const permissionError = new FirestorePermissionError({ path: userRef.path, operation: 'get' });
+             errorEmitter.emit('permission-error', permissionError);
+             throw permissionError;
+        });
+
+        if (!userSnap.exists()) {
+            throw new Error("Could not find student profile.");
+        }
+        const studentData = userSnap.data();
+        if (studentData.role !== 'student') {
+            throw new Error("This user is not a student.");
+        }
+
+        // Step 3: Add the student to the educator's private roster subcollection.
+        const rosterRef = doc(firestore, `users/${user.uid}/students/${uid}`);
+        await setDoc(rosterRef, {
+            uid: uid,
+            email: studentData.email,
+            firstName: studentData.firstName,
+            lastName: studentData.lastName,
+        }).catch(error => {
+             const permissionError = new FirestorePermissionError({
+                path: rosterRef.path,
+                operation: 'create',
+                requestResourceData: { uid: uid, email: studentData.email, firstName: studentData.firstName, lastName: studentData.lastName }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            throw permissionError;
+        });
+
+
+        toast({
+            title: "Student Added!",
+            description: `${studentData.firstName} ${studentData.lastName} has been added to your roster.`
+        });
+        setNewStudentEmail('');
+
+    } catch (error: any) {
+        if (!(error instanceof FirestorePermissionError)) {
+            toast({
+                variant: 'destructive',
+                title: 'Failed to Add Student',
+                description: error.message || "An unexpected error occurred. Please try again."
+            });
+        }
+    } finally {
+        setIsAddingStudent(false);
+    }
+  };
+  
+  const handleRemoveStudent = async (studentId: string) => {
+    if(!user || !studentId) return;
+
+    const studentDocRef = doc(firestore, `users/${user.uid}/students/${studentId}`);
+    
+    await deleteDoc(studentDocRef).catch(error => {
+         const permissionError = new FirestorePermissionError({
+            path: studentDocRef.path,
+            operation: 'delete'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    toast({
+        title: "Student Removed",
+        description: "The student has been removed from your roster."
+    })
+  }
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied to clipboard!' });
@@ -502,6 +596,68 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                 </CardFooter>
             </Card>
             </form>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-xl">Student Roster</CardTitle>
+                    <CardDescription>
+                        Manage your list of students.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {studentsLoading ? (
+                         <div className="h-10 w-full animate-pulse rounded-md bg-muted"></div>
+                     ) : students && students.length > 0 ? (
+                         <div className="space-y-2">
+                            {students.map((student: any) => (
+                                <div key={student.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
+                                    <div>
+                                        <p className="font-medium text-sm">{student.firstName} {student.lastName}</p>
+                                        <p className="text-xs text-muted-foreground">{student.email}</p>
+                                    </div>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                             <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Trash2 className="h-4 w-4 text-destructive/70"/>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will remove {student.firstName} {student.lastName} from your roster. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleRemoveStudent(student.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                    Remove Student
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                            ))}
+                         </div>
+                     ) : (
+                          <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg">
+                            Your roster is empty.
+                           </div>
+                     )}
+                </CardContent>
+                <CardFooter>
+                     <form onSubmit={handleAddStudent} className="w-full flex gap-2">
+                        <Input
+                            placeholder="Student's email address"
+                            value={newStudentEmail}
+                            onChange={(e) => setNewStudentEmail(e.target.value)}
+                            disabled={isAddingStudent}
+                        />
+                        <Button type="submit" disabled={isAddingStudent || !newStudentEmail}>
+                            {isAddingStudent ? <Loader className="animate-spin" /> : <UserPlus />}
+                        </Button>
+                    </form>
+                </CardFooter>
+            </Card>
 
             <Card>
                 <CardHeader>
@@ -555,8 +711,8 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                                     <div key={s.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent">
                                                                         <Checkbox 
                                                                             id={`student-${s.id}`} 
-                                                                            onCheckedChange={() => handleStudentSelection(s.uid)}
-                                                                            checked={studentsToAssign.includes(s.uid)}
+                                                                            onCheckedChange={() => handleStudentSelection(s.id)}
+                                                                            checked={studentsToAssign.includes(s.id)}
                                                                         />
                                                                         <label
                                                                             htmlFor={`student-${s.id}`}
@@ -566,7 +722,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                                         </label>
                                                                     </div>
                                                                 )) : (
-                                                                    !studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">No students in roster.</div>
+                                                                    !studentsLoading && <div className="p-4 text-sm text-center text-muted-foreground">No students in your roster.</div>
                                                                 )}
                                                             </CardContent>
                                                         </ScrollArea>

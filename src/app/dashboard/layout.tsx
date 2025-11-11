@@ -20,7 +20,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 
 export default function DashboardLayout({
@@ -61,12 +60,6 @@ export default function DashboardLayout({
     [firestore, user, userProfile]
   );
   const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
-
-  const rosterQuery = useMemoFirebase(
-    () => (userProfile?.role === 'educator' ? query(collection(firestore, 'roster'), orderBy('firstName')) : null),
-    [userProfile, firestore]
-  );
-  const { data: roster, isLoading: isLoadingRoster } = useCollection(rosterQuery);
 
 
   useEffect(() => {
@@ -187,30 +180,21 @@ export default function DashboardLayout({
                           {isLoadingSubmissions && !submissions ? (
                               <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading...</p>
                           ) : submissions && submissions.length > 0 ? (
-                            <ScrollArea className="h-48">
+                            <ScrollArea className="h-96">
                               {submissions.map((sub: any) => (
                                 <SidebarMenuItem key={sub.id}>
                                    <AlertDialog open={editingSubmission?.id === sub.id} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                 <AlertDialogTrigger asChild>
-                                                    <SidebarMenuButton variant="ghost" className="w-full justify-start text-left h-auto" onClick={() => setEditingSubmission(sub)}>
-                                                        <div className="flex items-start gap-2">
-                                                            <GraduationCap className="mt-1"/>
-                                                            <div className="flex flex-col text-left group-data-[collapsible=icon]:hidden">
-                                                                <span className="font-medium">{sub.studentName}</span>
-                                                                <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.isPublished ? `${sub.score}%` : 'Pending'}</span>
-                                                            </div>
-                                                        </div>
-                                                    </SidebarMenuButton>
-                                                </AlertDialogTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" align="center" className="flex flex-col items-start p-2" >
-                                                <span className="font-bold">{sub.studentName}</span>
-                                                <span className="text-muted-foreground">{sub.dsaConcept} - {sub.isPublished ? `${sub.score}%` : 'Pending'}</span>
-                                            </TooltipContent>
-                                        </Tooltip>
-
+                                        <AlertDialogTrigger asChild>
+                                            <SidebarMenuButton variant="ghost" className="w-full justify-start text-left h-auto" onClick={() => setEditingSubmission(sub)}>
+                                                <div className="flex items-start gap-3">
+                                                    <GraduationCap className="mt-1"/>
+                                                    <div className="flex flex-col text-left group-data-[collapsible=icon]:hidden">
+                                                        <span className="font-medium">{sub.studentName}</span>
+                                                        <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.isPublished ? `${sub.score}%` : 'Pending'}</span>
+                                                    </div>
+                                                </div>
+                                            </SidebarMenuButton>
+                                        </AlertDialogTrigger>
                                         <AlertDialogContent className="max-w-2xl">
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
@@ -269,37 +253,6 @@ export default function DashboardLayout({
                           )}
                       </SidebarMenu>
                   </SidebarGroup>
-                   <SidebarGroup>
-                        <SidebarGroupLabel>Student Roster</SidebarGroupLabel>
-                        <SidebarMenu>
-                            {isLoadingRoster ? (
-                                 <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading...</p>
-                            ) : roster && roster.length > 0 ? (
-                                <ScrollArea className="h-48">
-                                    {roster.map((student: any) => (
-                                        <SidebarMenuItem key={student.id}>
-                                             <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <SidebarMenuButton variant="ghost" className="w-full justify-start text-left">
-                                                         <UserCircle />
-                                                         <span className="truncate">{student.firstName} {student.lastName}</span>
-                                                    </SidebarMenuButton>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="right" align="center" className="flex flex-col items-start p-2" >
-                                                    <span className="font-bold">{student.firstName} {student.lastName}</span>
-                                                    <span className="text-muted-foreground">{student.email}</span>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </SidebarMenuItem>
-                                    ))}
-                                </ScrollArea>
-                            ) : (
-                                 <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
-                                  No students in roster.
-                               </div>
-                            )}
-                        </SidebarMenu>
-                   </SidebarGroup>
                   </>
                 )}
             </SidebarContent>
