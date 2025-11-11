@@ -170,7 +170,7 @@ export default function AssignmentsPage() {
                               </DialogDescription>
                             </DialogHeader>
                             {editingSubmission && editingSubmission.id === sub.id && (
-                              <div className="grid gap-4 py-4">
+                              <div className="space-y-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
                                   <Label className="text-right">Student</Label>
                                   <Input value={editingSubmission.studentName} disabled className="col-span-3" />
@@ -192,15 +192,17 @@ export default function AssignmentsPage() {
                                     id="feedback"
                                     value={editableFeedback}
                                     onChange={(e) => setEditableFeedback(e.target.value)}
-                                    className="col-span-3 h-48"
+                                    className="col-span-3 h-32"
                                     disabled={editingSubmission.isPublished}
                                   />
                                 </div>
-                                <div>
+                                <div className="space-y-2">
                                   <Label>Submitted Code</Label>
-                                  <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto mt-2">
-                                    <code>{editingSubmission.solutionCode}</code>
-                                  </pre>
+                                   <ScrollArea className="h-48 w-full rounded-md border p-4 bg-muted">
+                                        <pre className="text-xs text-foreground">
+                                          <code>{editingSubmission.solutionCode}</code>
+                                        </pre>
+                                  </ScrollArea>
                                 </div>
                               </div>
                             )}
