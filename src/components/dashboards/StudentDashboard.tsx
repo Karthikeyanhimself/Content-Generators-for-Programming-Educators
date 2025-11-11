@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -72,7 +71,8 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
         ? query(
             collection(firestore, `users/${user.uid}/assignments`),
             where('status', 'in', ['assigned', 'submitted', 'completed']),
-            orderBy('createdAt', 'desc')
+            orderBy('status'),
+            orderBy('dueDate', 'asc')
           )
         : null,
     [firestore, user]
