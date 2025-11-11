@@ -267,7 +267,7 @@ export default function ScenariosPage() {
                             <DialogFooter>
                                  <DialogClose asChild>
                                     <Button variant="ghost">Cancel</Button>
-                                </DialogClose>
+                                 </DialogClose>
                                 <Button onClick={handleGenerateScenario} disabled={isGenerating}>
                                     {isGenerating ? (
                                         <>
@@ -336,5 +336,7 @@ export default function ScenariosPage() {
         </>
     );
 }
+
+    
 
     
