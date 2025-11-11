@@ -45,7 +45,7 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, UserPlus, Send, Calendar as CalendarIcon, FileCheck2, Edit } from 'lucide-react';
+import { Loader, UserPlus, Send, Calendar as CalendarIcon, FileCheck2, Edit, Users, BrainCircuit, BookCopy } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Badge } from '../ui/badge';
@@ -54,6 +54,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
+import Link from 'next/link';
 
 type Student = {
   uid: string;
@@ -81,22 +82,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>();
   
-  const [isPublishing, setIsPublishing] = useState<string | null>(null);
-
-  // State for editing a submission
-  const [editingSubmission, setEditingSubmission] = useState<any | null>(null);
-  const [editableScore, setEditableScore] = useState<number | string>('');
-  const [editableFeedback, setEditableFeedback] = useState<string>('');
-
-
-  // When a submission is selected for editing, populate the state
-  useEffect(() => {
-    if (editingSubmission) {
-      setEditableScore(editingSubmission.score);
-      setEditableFeedback(editingSubmission.feedback);
-    }
-  }, [editingSubmission]);
-
   // Fetch scenarios for assignment
   const scenariosQuery = useMemoFirebase(
     () => (user ? query(collection(firestore, 'scenarios')) : null),
@@ -110,13 +95,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     [user, firestore]
   );
   const { data: roster, isLoading: isLoadingRoster } = useCollection<Student>(rosterQuery);
-
-  // Fetch submissions for this educator
-  const submissionsQuery = useMemoFirebase(
-    () => (user ? query(collection(firestore, `educators/${user.uid}/submissions`), orderBy('submittedAt', 'desc')) : null),
-    [user, firestore]
-  );
-  const { data: submissions, isLoading: isLoadingSubmissions } = useCollection(submissionsQuery);
 
 
   const handleAssignScenario = async () => {
@@ -172,47 +150,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     }
   };
   
-  const handlePublishScore = async (submission: any) => {
-    if (!firestore || !submission || !user) return;
-    setIsPublishing(submission.id);
-
-    try {
-      // 1. Update the student's original assignment document with the (potentially edited) score and feedback
-      const studentAssignmentRef = doc(firestore, 'users', submission.studentId, 'assignments', submission.originalAssignmentId);
-      await updateDoc(studentAssignmentRef, {
-        score: Number(editableScore), // Use the editable score from state
-        feedback: editableFeedback, // Use the editable feedback from state
-        status: 'completed',
-      });
-
-      // 2. Update the denormalized submission record to mark it as published
-      const educatorSubmissionRef = doc(firestore, `educators/${user.uid}/submissions/${submission.id}`);
-      await updateDoc(educatorSubmissionRef, {
-        isPublished: true,
-        score: Number(editableScore), // Also update the score here for consistency
-        feedback: editableFeedback,
-      });
-
-      toast({
-        title: 'Score Published!',
-        description: `${submission.studentName} can now see their results.`,
-      });
-      
-      setEditingSubmission(null); // Close the dialog by resetting the state
-
-    } catch (error) {
-      console.error('Error publishing score:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Publishing Failed',
-        description: 'Could not publish the score. Please check permissions and try again.',
-      });
-    } finally {
-      setIsPublishing(null);
-    }
-  };
-
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Left Column */}
@@ -333,115 +270,27 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
             </Button>
           </CardFooter>
         </Card>
-
-        {/* Submissions Card */}
-        <Card>
-            <CardHeader>
-                <CardTitle>Student Submissions</CardTitle>
-                <CardDescription>Review and grade work submitted by your students.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 {isLoadingSubmissions ? (
-                    <div className="flex justify-center items-center h-24">
-                        <Loader className="animate-spin text-muted-foreground"/>
-                    </div>
-                ) : submissions && submissions.length > 0 ? (
-                    <ScrollArea className="h-96">
-                        <div className="space-y-4 pr-6">
-                            {submissions.map((sub: any) => (
-                                <Alert key={sub.id} className={sub.isPublished ? 'border-green-500/30' : ''}>
-                                    <FileCheck2 className="h-4 w-4" />
-                                    <AlertTitle className="flex justify-between items-center">
-                                        <span>{sub.dsaConcept} - {sub.studentName}</span>
-                                         <Badge variant={sub.isPublished ? 'secondary' : 'default'}>{sub.isPublished ? 'Published' : 'Pending'}</Badge>
-                                    </AlertTitle>
-                                    <AlertDescription className="mt-2 text-sm">
-                                        Submitted on {format(sub.submittedAt.toDate(), 'PPP')} &bull; Score: {sub.score}%
-                                    </AlertDescription>
-                                    <div className="mt-4">
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="outline" size="sm" onClick={() => setEditingSubmission(sub)}>
-                                                    <Edit className="mr-2 h-3 w-3"/>
-                                                    Review & Publish
-                                                </Button>
-                                            </DialogTrigger>
-                                        </Dialog>
-                                    </div>
-                                </Alert>
-                            ))}
-                        </div>
-                    </ScrollArea>
-                ) : (
-                     <div className="text-center py-8 text-muted-foreground">
-                        No submissions yet.
-                    </div>
-                )}
-            </CardContent>
-        </Card>
       </div>
 
       {/* Right Column */}
       <div className="space-y-8">
-        {/* Empty placeholder for right column to maintain layout */}
+        <Card className="bg-gradient-to-br from-primary/10 to-transparent">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+              <Button asChild variant="outline" size="lg">
+                <Link href="/dashboard/scenarios"><BrainCircuit className="mr-2" /> AI Scenario Generator</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/dashboard/assignments"><BookCopy className="mr-2" /> Manage Assignments</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/dashboard/students"><Users className="mr-2" /> Oversee Students</Link>
+              </Button>
+          </CardContent>
+        </Card>
       </div>
-
-       {/* Edit Submission Dialog */}
-      <Dialog open={!!editingSubmission} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
-        <DialogContent className="sm:max-w-[625px]">
-          <DialogHeader>
-            <DialogTitle>Review Submission</DialogTitle>
-            <DialogDescription>
-              Review the student's code, adjust the AI-generated feedback and score if needed, and publish the results.
-            </DialogDescription>
-          </DialogHeader>
-          {editingSubmission && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Student</Label>
-                <Input value={editingSubmission.studentName} disabled className="col-span-3" />
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="score" className="text-right">Score</Label>
-                <Input
-                  id="score"
-                  type="number"
-                  value={editableScore}
-                  onChange={(e) => setEditableScore(e.target.value)}
-                  className="col-span-1"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-start gap-4">
-                 <Label htmlFor="feedback" className="text-right pt-2">Feedback</Label>
-                <Textarea
-                  id="feedback"
-                  value={editableFeedback}
-                  onChange={(e) => setEditableFeedback(e.target.value)}
-                  className="col-span-3 h-48"
-                />
-              </div>
-              <div>
-                <Label>Submitted Code</Label>
-                <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto mt-2">
-                  <code>{editingSubmission.solutionCode}</code>
-                </pre>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <DialogClose asChild>
-                <Button variant="ghost">Cancel</Button>
-            </DialogClose>
-            <Button onClick={() => handlePublishScore(editingSubmission)} disabled={isPublishing === editingSubmission?.id}>
-              {isPublishing === editingSubmission?.id ? (
-                <>
-                  <Loader className="mr-2 h-4 w-4 animate-spin"/> Publishing...
-                </>
-              ) : 'Save & Publish'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
