@@ -28,17 +28,6 @@ import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebas
 import { collection, orderBy, query, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { format, isPast } from 'date-fns';
 import { Badge } from '../ui/badge';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { ScrollArea } from '../ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 
@@ -443,42 +432,11 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                                         )}
                                     </CardContent>
                                     <CardFooter>
-                                        {assignment.status === 'assigned' || assignment.status === 'submitted' ? (
-                                            <Button className="w-full" asChild disabled={pastDue}>
-                                                <Link href={`/dashboard/assignment/${assignment.id}`}>
-                                                  {pastDue ? <><Clock className="mr-2 h-4 w-4"/>Past Due</> : (assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission')}
-                                                </Link>
-                                            </Button>
-                                        ) : (
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button className="w-full" variant="outline">View Submission</Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent className="max-w-2xl">
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Your Submission for: {assignment.dsaConcept}</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                           Submitted on {assignment.submittedAt ? format(assignment.submittedAt.toDate(), 'PPP') : ''}
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <ScrollArea className="max-h-[50vh]">
-                                                        <div className="space-y-4 p-1">
-                                                            <div>
-                                                                <h4 className="font-semibold mb-2">Your Score: {assignment.score !== undefined ? `${assignment.score}%` : 'Not yet published'}</h4>
-                                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignment.feedback || "Your feedback will appear here once published by your educator."}</p>
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="font-semibold mb-2">Your Code:</h4>
-                                                                <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{assignment.solutionCode}</code></pre>
-                                                            </div>
-                                                        </div>
-                                                    </ScrollArea>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Close</AlertDialogCancel>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        )}
+                                        <Button asChild className="w-full" disabled={pastDue && assignment.status !== 'completed'}>
+                                            <Link href={`/dashboard/assignment/${assignment.id}`}>
+                                              {pastDue && assignment.status !== 'completed' ? <><Clock className="mr-2 h-4 w-4"/>Past Due</> : (assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission')}
+                                            </Link>
+                                        </Button>
                                     </CardFooter>
                                 </Card>
                             )})}

@@ -54,14 +54,6 @@ service cloud.firestore {
       allow get: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
-
-       /**
-       * @description Controls access to assignment documents.
-       * A user can fully control their own assignments.
-       */
-      match /assignments/{assignmentId} {
-        allow read, write, delete: if isOwner(userId);
-      }
     }
     
     /**
@@ -69,6 +61,18 @@ service cloud.firestore {
      */
     match /users/{userId}/students/{studentId} {
       allow read, list, write, delete: if isOwner(userId);
+    }
+    
+    /**
+     * @description Controls access to assignment documents. A user can fully manage their own assignments.
+     */
+    match /users/{userId}/assignments/{assignmentId} {
+        allow read, write, create, delete: if isOwner(userId);
+    }
+    
+     // Rule for LISTING assignments
+    match /users/{userId}/assignments {
+        allow list: if isOwner(userId);
     }
 
     /**
@@ -94,28 +98,22 @@ service cloud.firestore {
 
     /**
      * @description Denormalized submissions for easy educator querying.
-     * Separates collection-level rules (list) from document-level rules (get, update, create).
+     * - Educators can read/update/list their own submissions collection.
+     * - Students can create submissions in the correct educator's collection.
      */
     match /educators/{educatorId}/submissions/{submissionId} {
-
-      // GET (Single Document Read): An educator can read a single submission from their collection.
-      allow get: if request.auth != null && request.auth.uid == educatorId;
-
       function isStudentTheSubmitter() {
         return request.auth != null && request.resource.data.studentId == request.auth.uid;
       }
 
       function doesOriginalAssignmentBelongToEducator(educatorId) {
         let originalAssignmentPath = /databases/$(database)/documents/users/$(request.auth.uid)/assignments/$(request.resource.data.originalAssignmentId);
-        return get(originalAssignmentPath).data.educatorId == educatorId;
+        let assignmentDoc = get(originalAssignmentPath);
+        return assignmentDoc.data.educatorId == educatorId;
       }
 
-      // CREATE: A student can create a submission record in the correct educator's collection.
+      allow read, update: if request.auth != null && request.auth.uid == educatorId;
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
-
-      // UPDATE: An educator can only update submissions in their own collection (e.g., to publish).
-      allow update: if request.auth != null && request.auth.uid == educatorId;
-      
       allow delete: if false;
     }
     
@@ -123,7 +121,6 @@ service cloud.firestore {
     match /educators/{educatorId}/submissions {
         allow list: if request.auth != null && request.auth.uid == educatorId;
     }
-
 
     /**
      * @description Controls access to hint documents. Hints are readable, but write access is denied.
