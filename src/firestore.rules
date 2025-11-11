@@ -21,7 +21,7 @@
  *
  * Key Security Decisions:
  * - Users can only read/write their own user and profile data.
- * - **Exception**: An educator can read a student's profile if that student is in their roster.
+ * - **Exception**: An educator can read a student's profile if that user's role is 'student'.
  * - `users-by-email` allows any authenticated user to find a student's UID by email.
  * - Scenarios are publicly readable, but write access is restricted.
  * - Assignments are owned by the student.
@@ -35,18 +35,23 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Checks if the requesting user (an educator) has the target user (a student) in their roster.
-    function isStudentInEducatorRoster(studentId) {
-      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)/students/$(studentId));
+    // Checks if the requesting user is an educator.
+    function isEducator() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'educator';
+    }
+
+    // Checks if the target user is a student.
+    function isTargetStudent(userId) {
+        return get(/databases/$(database)/documents/users/$(userId)).data.role == 'student';
     }
 
     /**
      * @description Controls access to user account documents.
      * - A user can always read/write their own document.
-     * - An educator can read a student's document if the student is in their roster.
+     * - An educator can read a student's document.
      */
     match /users/{userId} {
-      allow read: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      allow read: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       allow write: if isOwner(userId);
       allow list: if false; // Prevent listing all users.
     }
@@ -88,13 +93,13 @@ service cloud.firestore {
       
       // CREATE:
       // 1. A user can create their own assignment (student self-assigning, educator drafting).
-      // 2. An educator can create an assignment for a student in their roster.
-      allow create: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      // 2. An educator can create an assignment for a student they can read.
+      allow create: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
       
       // UPDATE:
       // A student can update their own assignment (e.g., to submit it).
       // An educator can update a student's assignment (e.g., to publish a score).
-      allow update: if isOwner(userId) || isStudentInEducatorRoster(userId);
+      allow update: if isOwner(userId) || (isEducator() && isTargetStudent(userId));
 
       // DELETE: Only the owner can delete their assignments.
       allow delete: if isOwner(userId);
