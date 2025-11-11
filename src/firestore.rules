@@ -57,18 +57,10 @@ service cloud.firestore {
 
        /**
        * @description Controls access to assignment documents.
+       * A user can fully control their own assignments.
        */
       match /assignments/{assignmentId} {
-        // A user can only get, update, delete, or create their own assignments.
-        allow get, update, delete, create: if isOwner(userId);
-      }
-      
-      /**
-       * @description Controls access to the assignments collection for queries.
-       */
-      match /assignments {
-        // A user can only list their own assignments.
-        allow list: if isOwner(userId);
+        allow read, write, delete: if isOwner(userId);
       }
     }
     
