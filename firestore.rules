@@ -65,7 +65,7 @@ service cloud.firestore {
 
     /**
      * @description Securely maps emails to UIDs. Allows any authenticated user to read,
-     * and users to create their own mapping. This is the crucial lookup step for an educator.
+     * and users to create their own email-to-UID mapping. This is the crucial lookup step for an educator.
      */
     match /users-by-email/{email} {
       allow get: if request.auth != null;
@@ -112,7 +112,8 @@ service cloud.firestore {
      * - An educator can update a submission record (e.g. to mark as published).
      */
     match /educators/{educatorId}/submissions/{submissionId} {
-      allow read, list: if isOwner(educatorId);
+      // READ: An educator can read/list submissions only from their own submissions collection.
+      allow get, list: if request.auth != null && request.auth.uid == educatorId;
 
       function isStudentTheSubmitter() {
         return request.auth != null && request.resource.data.studentId == request.auth.uid;
@@ -124,7 +125,8 @@ service cloud.firestore {
       }
 
       allow create: if isStudentTheSubmitter() && doesOriginalAssignmentBelongToEducator(educatorId);
-      allow update: if isOwner(educatorId); // Educator can update (e.g., to publish)
+      // UPDATE: An educator can only update submissions in their own collection.
+      allow update: if request.auth != null && request.auth.uid == educatorId;
       allow delete: if false;
     }
 
@@ -148,5 +150,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
