@@ -229,18 +229,20 @@ export default function ScenariosPage() {
                                         <PopoverContent className="w-[450px] p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder="Search concepts..." />
-                                                <CommandEmpty>No concept found.</CommandEmpty>
-                                                <CommandGroup>
-                                                    <CommandList>
+                                                <CommandList>
+                                                    <CommandEmpty>No concept found.</CommandEmpty>
+                                                    <CommandGroup>
                                                         {dsaConceptOptions.map((option) => (
                                                             <CommandItem
                                                                 key={option}
-                                                                onSelect={() => {
+                                                                value={option}
+                                                                onSelect={(currentValue) => {
                                                                     setSelectedDsaConcepts(current => 
-                                                                        current.includes(option) 
-                                                                            ? current.filter(c => c !== option)
-                                                                            : [...current, option]
+                                                                        current.includes(currentValue) 
+                                                                            ? current.filter(c => c !== currentValue)
+                                                                            : [...current, currentValue]
                                                                     );
+                                                                    setIsPopoverOpen(true); // Keep popover open
                                                                 }}
                                                             >
                                                                 <div className={cn(
@@ -252,8 +254,8 @@ export default function ScenariosPage() {
                                                                 {option}
                                                             </CommandItem>
                                                         ))}
-                                                    </CommandList>
-                                                </CommandGroup>
+                                                    </CommandGroup>
+                                                </CommandList>
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
