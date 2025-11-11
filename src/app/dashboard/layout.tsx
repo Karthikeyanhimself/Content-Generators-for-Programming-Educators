@@ -94,6 +94,14 @@ export default function DashboardLayout({
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/assignments')} tooltip="Assignments">
+                            <Link href="/dashboard/assignments">
+                                <BookCopy />
+                                <span>Assignments</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
                     {userProfile?.role === 'educator' && (
                         <>
                             <SidebarMenuItem>
@@ -114,14 +122,6 @@ export default function DashboardLayout({
                             </SidebarMenuItem>
                         </>
                     )}
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/assignments')} tooltip="Assignments">
-                            <Link href="/dashboard/assignments">
-                                <BookCopy />
-                                <span>Assignments</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
                  </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto">

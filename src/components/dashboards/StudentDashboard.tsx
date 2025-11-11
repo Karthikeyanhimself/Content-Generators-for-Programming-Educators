@@ -54,19 +54,6 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   const [score, setScore] = useState(0);
   const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-
-  const assignmentsQuery = useMemoFirebase(
-    () =>
-      user
-        ? query(
-            collection(firestore, `users/${user.uid}/assignments`),
-            where('status', 'in', ['assigned', 'submitted', 'completed']),
-            orderBy('dueDate', 'asc')
-          )
-        : null,
-    [firestore, user]
-  );
-  const { data: assignments, isLoading: assignmentsLoading } = useCollection(assignmentsQuery);
   
   // This effect will run once when the dashboard loads to activate any pending assignments.
   useEffect(() => {
@@ -76,7 +63,8 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
         const now = new Date();
         const scheduledQuery = query(
             collection(firestore, `users/${user.uid}/assignments`),
-            where('status', '==', 'scheduled')
+            where('status', '==', 'scheduled'),
+            where('scheduledAt', '<=', now)
         );
 
         try {
@@ -85,14 +73,10 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
 
             const batch = writeBatch(firestore);
             scheduledDocs.forEach(docSnap => {
-                const assignment = docSnap.data();
-                if (assignment.scheduledAt && assignment.scheduledAt.toDate() <= now) {
-                    batch.update(docSnap.ref, { status: 'assigned' });
-                }
+                batch.update(docSnap.ref, { status: 'assigned' });
             });
 
             await batch.commit();
-            // The useCollection hook will automatically pick up the change and re-render.
         } catch (error) {
             console.error("Error activating scheduled assignments:", error);
         }
@@ -362,19 +346,6 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
   }
   
   if (viewMode === 'dashboard') {
-    const getStatusVariant = (status: string, dueDate: any) => {
-        if (isPast(dueDate?.toDate()) && status === 'assigned') return 'destructive';
-        switch (status) {
-            case 'assigned':
-                return 'default';
-            case 'submitted':
-                return 'outline';
-            case 'completed':
-                return 'secondary';
-            default:
-                return 'default';
-        }
-    };
     return (
         <div className="space-y-8">
              <Alert className="bg-primary/5 border-primary/20">
@@ -384,78 +355,14 @@ export default function StudentDashboard({ userProfile }: { userProfile: any }) 
                     {userProfile.learningGoals || "Your learning plan is being generated. Complete an assignment to get your first goal!"}
                 </AlertDescription>
             </Alert>
-            
-            <Card>
+             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline text-2xl">Assignments</CardTitle>
-                    <CardDescription>Challenges assigned to you by your educators or the AI agent.</CardDescription>
+                    <CardTitle>Next Steps</CardTitle>
                 </CardHeader>
                 <CardContent>
-                     {assignmentsLoading ? (
-                         <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center">
-                            <Loader className="h-8 w-8 text-muted-foreground animate-spin"/>
-                            <p className="text-muted-foreground text-sm">Loading assignments...</p>
-                        </div>
-                     ) : assignments && assignments.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {assignments.map((assignment: any) => {
-                                const pastDue = isPast(assignment.dueDate.toDate()) && assignment.status === 'assigned';
-                                return (
-                                <Card key={assignment.id} className="flex flex-col">
-                                    <CardHeader>
-                                        <div className="flex justify-between items-center">
-                                            <CardTitle className="text-xl">{assignment.dsaConcept}</CardTitle>
-                                            {assignment.isAutonomouslyGenerated && (
-                                                <Badge variant="outline" className="border-primary/50 text-primary"><Bot className="h-3 w-3 mr-1.5"/> AI</Badge>
-                                            )}
-                                        </div>
-                                        <CardDescription>from {assignment.educatorId === 'SYSTEM' ? 'AI Agent' : 'Educator'}</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2 flex-1">
-                                         <div className="flex items-center justify-between text-sm">
-                                            <span className="text-muted-foreground">Due Date</span>
-                                            <span className={pastDue ? 'text-destructive font-medium' : ''}>{assignment.dueDate ? format(assignment.dueDate.toDate(), 'PPP p') : 'N/A'}</span>
-                                        </div>
-                                         <div className="flex items-center justify-between text-sm">
-                                            <span className="text-muted-foreground">Status</span>
-                                            <Badge variant={getStatusVariant(assignment.status, assignment.dueDate)} className="capitalize">
-                                                {pastDue ? 'Past Due' : assignment.status}
-                                            </Badge>
-                                        </div>
-                                        {assignment.status === 'completed' && (
-                                             <div className="flex items-center justify-between text-sm font-medium pt-2">
-                                                <span className="text-muted-foreground">Score</span>
-                                                {assignment.score !== undefined ? (
-                                                     <span className={assignment.score > 75 ? "text-green-500" : "text-amber-500"}>{assignment.score}%</span>
-                                                ) : (
-                                                    <span className="text-xs text-muted-foreground">Awaiting publication</span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                    <CardFooter>
-                                        <Button asChild className="w-full" disabled={pastDue && assignment.status !== 'completed'}>
-                                            <Link href={`/dashboard/assignment/${assignment.id}`}>
-                                              {pastDue && assignment.status !== 'completed' ? <><Clock className="mr-2 h-4 w-4"/>Past Due</> : (assignment.status === 'assigned' ? 'Start Assignment' : 'View Submission')}
-                                            </Link>
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-                            )})}
-                        </div>
-                     ) : (
-                        <div className="flex h-[20vh] flex-col items-center justify-center gap-2 text-center border-2 border-dashed rounded-lg">
-                            <BookCopy className="h-8 w-8 text-muted-foreground"/>
-                            <h3 className="text-lg font-semibold text-foreground">
-                                No Assignments Yet
-                            </h3>
-                            <p className="text-muted-foreground text-sm">
-                                Your assignments from educators will appear here.
-                            </p>
-                        </div>
-                     )}
+                     <p className="text-muted-foreground">You're all set! Your assignments will appear on the <Link href="/dashboard/assignments" className="text-primary underline">Assignments</Link> page.</p>
                 </CardContent>
-            </Card>
+             </Card>
         </div>
     )
   }
