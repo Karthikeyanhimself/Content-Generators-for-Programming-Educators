@@ -53,22 +53,18 @@ const initiateStudentSeed = async (firestore: Firestore, educatorId: string) => 
             hasCompletedAssessment: true,
         });
 
-        // Create the necessary email lookup document
-        const emailDocRef = doc(firestore, `users-by-email/${student.email}`);
-        await setDoc(emailDocRef, { uid: student.uid });
-
-        // Add student to the new educator's roster
-        const rosterRef = doc(firestore, `users/${educatorId}/students/${student.uid}`);
+        // Add student to the global roster
+        const rosterRef = doc(firestore, 'roster', student.uid);
         await setDoc(rosterRef, {
             uid: student.uid,
             email: student.email,
             firstName: student.firstName,
             lastName: student.lastName,
-            addedAt: serverTimestamp()
         });
 
+
         // Create a submitted assignment for the student (NO SCORE/FEEDBACK HERE)
-        const assignmentRef = doc(firestore, `users/${student.uid}/assignments`);
+        const assignmentRef = doc(collection(firestore, `users/${student.uid}/assignments`));
         const assignmentData = {
             educatorId: educatorId,
             scenarioId: scenarioRef.id,
@@ -135,7 +131,6 @@ export default function SignupPage() {
           const lastName = lastNameParts.join(' ');
 
           const userRef = doc(firestore, 'users', user.uid);
-          const emailRef = doc(firestore, 'users-by-email', user.email!);
           
           let profileData: any = {
             id: user.uid,
@@ -152,6 +147,16 @@ export default function SignupPage() {
               learningGoals,
               preferredProgrammingLanguages: languages.split(',').map(s => s.trim()),
             };
+
+            // Add student to the global roster
+            const rosterRef = doc(firestore, 'roster', user.uid);
+            await setDoc(rosterRef, {
+                uid: user.uid,
+                email: user.email,
+                firstName: firstName,
+                lastName: lastName
+            });
+
           } else if (role === 'educator') {
             profileData = {
               ...profileData,
@@ -163,7 +168,6 @@ export default function SignupPage() {
 
           // Use standard setDoc to ensure these critical writes complete.
           await setDoc(userRef, profileData);
-          await setDoc(emailRef, { uid: user.uid });
           
           // For educator, seed sample students and wait for it to finish.
           if (role === 'educator') {
