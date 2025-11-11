@@ -215,6 +215,10 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                             <CommandItem
                                                 key={student.uid}
                                                 value={`${student.firstName} ${student.lastName} ${student.email}`}
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                }}
                                                 onSelect={() => {
                                                     setSelectedStudents(current => 
                                                         current.some(s => s.uid === student.uid)

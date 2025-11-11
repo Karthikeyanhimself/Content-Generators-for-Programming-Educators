@@ -236,6 +236,10 @@ export default function ScenariosPage() {
                                                             <CommandItem
                                                                 key={option}
                                                                 value={option}
+                                                                onMouseDown={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                }}
                                                                 onSelect={(currentValue) => {
                                                                     setSelectedDsaConcepts(current => 
                                                                         current.includes(option) 
