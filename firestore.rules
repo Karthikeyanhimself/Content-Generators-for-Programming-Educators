@@ -44,7 +44,7 @@ service cloud.firestore {
      * - An educator can list users to perform the one-time roster fix.
      */
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      allow get, read: if isOwner(userId);
       allow write: if isOwner(userId);
       allow list: if isEducator(); // Allow educators to list users for the roster fix.
     }
