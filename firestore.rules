@@ -23,7 +23,7 @@
  * - Students can only create their own entry in the roster upon signup.
  * - Scenarios are publicly readable, but write access is restricted.
  * - Assignments are owned by the user they are assigned to.
- * - Listing all users is disallowed for security reasons.
+ * - Listing all users is allowed for educators to perform the one-time roster fix.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -41,12 +41,12 @@ service cloud.firestore {
     /**
      * @description Controls access to user account documents.
      * - A user can always read/write their own document.
-     * - An educator can list users to perform the one-time roster fix.
      */
     match /users/{userId} {
       allow get, read: if isOwner(userId);
       allow write: if isOwner(userId);
-      allow list: if isEducator(); // Allow educators to list users for the roster fix.
+      // Allow educators to list users for the one-time roster fix.
+      allow list: if isEducator();
     }
     
     /**
