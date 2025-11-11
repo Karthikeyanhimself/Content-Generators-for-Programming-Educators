@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader, Wand2, BrainCircuit, Bot, FileCheck2, X } from 'lucide-react';
+import { Loader, Wand2, BrainCircuit, Bot, FileCheck2, X, ChevronsUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -204,29 +204,30 @@ export default function ScenariosPage() {
                                                 aria-expanded={isPopoverOpen}
                                                 className="w-full justify-between font-normal h-auto min-h-10"
                                             >
+                                                <div className="flex gap-1 flex-wrap">
                                                 {selectedDsaConcepts.length > 0 ? (
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        {selectedDsaConcepts.map((concept) => (
-                                                            <Badge
-                                                                variant="secondary"
-                                                                key={concept}
-                                                                className="mr-1 mb-1"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedDsaConcepts(prev => prev.filter(c => c !== concept));
-                                                                }}
-                                                            >
-                                                                {concept}
-                                                                <X className="ml-1 h-3 w-3" />
-                                                            </Badge>
-                                                        ))}
-                                                    </div>
+                                                    selectedDsaConcepts.map((concept) => (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            key={concept}
+                                                            className="mr-1 mb-1"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedDsaConcepts(prev => prev.filter(c => c !== concept));
+                                                            }}
+                                                        >
+                                                            {concept}
+                                                            <X className="ml-1 h-3 w-3" />
+                                                        </Badge>
+                                                    ))
                                                 ) : (
                                                     <span className="text-muted-foreground">Select concepts...</span>
                                                 )}
+                                                </div>
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[450px] p-0" align="start">
+                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder="Search concepts..." />
                                                 <CommandList>
@@ -235,11 +236,6 @@ export default function ScenariosPage() {
                                                         {dsaConceptOptions.map((option) => (
                                                             <CommandItem
                                                                 key={option}
-                                                                value={option}
-                                                                onMouseDown={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                }}
                                                                 onSelect={(currentValue) => {
                                                                     setSelectedDsaConcepts(current => 
                                                                         current.includes(option) 
@@ -338,3 +334,5 @@ export default function ScenariosPage() {
         </>
     );
 }
+
+    

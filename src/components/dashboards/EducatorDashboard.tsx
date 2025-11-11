@@ -40,6 +40,8 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { format } from 'date-fns';
+import { Badge } from '../ui/badge';
+import { X } from 'lucide-react';
 
 
 type Student = {
@@ -196,12 +198,28 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                 variant="outline"
                                 role="combobox"
                                 aria-expanded={isStudentPopoverOpen}
-                                className="w-full justify-between"
+                                className="w-full justify-between font-normal h-auto min-h-10"
                                 disabled={isLoadingRoster || !roster || roster.length === 0}
                             >
+                                <div className="flex gap-1 flex-wrap">
                                 {selectedStudents.length > 0
-                                    ? `${selectedStudents.length} student(s) selected`
-                                    : (isLoadingRoster ? 'Loading...' : 'Select from roster')}
+                                    ? selectedStudents.map(student => (
+                                        <Badge
+                                            variant="secondary"
+                                            key={student.uid}
+                                            className="mr-1 mb-1"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedStudents(current => current.filter(s => s.uid !== student.uid))
+                                            }}
+                                        >
+                                            {student.firstName}
+                                            <X className="ml-1 h-3 w-3" />
+                                        </Badge>
+                                    ))
+                                    : (<span>{isLoadingRoster ? 'Loading...' : 'Select from roster'}</span>)
+                                }
+                                </div>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                         </PopoverTrigger>
@@ -215,10 +233,6 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                             <CommandItem
                                                 key={student.uid}
                                                 value={`${student.firstName} ${student.lastName} ${student.email}`}
-                                                onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                }}
                                                 onSelect={() => {
                                                     setSelectedStudents(current => 
                                                         current.some(s => s.uid === student.uid)
@@ -345,3 +359,4 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
   );
 }
 
+    
