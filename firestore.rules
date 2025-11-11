@@ -60,7 +60,7 @@ service cloud.firestore {
      * @description Educator's student roster. Only the educator can manage their own roster.
      */
     match /users/{userId}/students/{studentId} {
-      allow read, list, write, delete: if isOwner(userId);
+      allow read, write, delete: if isOwner(userId);
     }
     
     /**
