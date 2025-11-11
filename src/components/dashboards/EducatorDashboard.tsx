@@ -224,7 +224,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command filter={() => 1}>
+                            <Command>
                                 <CommandInput placeholder="Search students..." />
                                 <CommandList>
                                     <CommandEmpty>No students found.</CommandEmpty>
@@ -239,6 +239,7 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
                                                             ? current.filter(s => s.uid !== student.uid)
                                                             : [...current, student]
                                                     );
+                                                    setIsStudentPopoverOpen(false);
                                                 }}
                                             >
                                                 <Check
@@ -358,3 +359,5 @@ export default function EducatorDashboard({ userProfile }: { userProfile: any}) 
     </div>
   );
 }
+
+    

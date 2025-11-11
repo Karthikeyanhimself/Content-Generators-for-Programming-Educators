@@ -228,7 +228,7 @@ export default function ScenariosPage() {
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                            <Command filter={() => 1}>
+                                            <Command>
                                                 <CommandInput placeholder="Search concepts..." />
                                                 <CommandList>
                                                     <CommandEmpty>No concept found.</CommandEmpty>
@@ -243,6 +243,7 @@ export default function ScenariosPage() {
                                                                             ? current.filter(c => c !== option)
                                                                             : [...current, option]
                                                                     );
+                                                                    setIsPopoverOpen(false);
                                                                 }}
                                                             >
                                                                 <FileCheck2 className={cn(
