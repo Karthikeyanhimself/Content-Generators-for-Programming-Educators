@@ -4,7 +4,7 @@
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send, Pencil, Users } from 'lucide-react';
+import { BrainCircuit, LayoutDashboard, LogOut, PanelLeft, UserCircle, GraduationCap, Send, Pencil, Users, Settings, BookCopy } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarHeader, SidebarProvider, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
@@ -149,184 +149,83 @@ export default function DashboardLayout({
     return null;
   }
 
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return names[0][0] + names[names.length - 1][0];
+    }
+    return name[0];
+  }
+  
   return (
     <SidebarProvider>
         <Sidebar collapsible="icon">
-            <SidebarHeader className='flex items-center p-2'>
+             <SidebarHeader className='flex items-center p-4'>
                  <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
-                    <BrainCircuit className="h-6 w-6 text-primary" />
-                    <span className="font-headline group-data-[collapsible=icon]:hidden">AlgoGenius</span>
+                    <LayoutDashboard className="h-6 w-6 text-primary" />
+                    <span className="font-headline group-data-[collapsible=icon]:hidden">Dashboard</span>
                 </Link>
-                <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:rotate-180">
-                    <PanelLeft/>
-                </SidebarTrigger>
             </SidebarHeader>
             <SidebarContent className="p-2">
                  <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip="Dashboard">
+                        <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip="Scenarios">
                             <Link href="/dashboard">
-                                <LayoutDashboard />
-                                <span>Dashboard</span>
+                                <BrainCircuit />
+                                <span>Scenarios</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/profile')} tooltip="Profile">
-                            <Link href="/dashboard/profile">
-                                <UserCircle />
-                                <span>Profile</span>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/assignments')} tooltip="Assignments">
+                            <Link href="/dashboard/assignments">
+                                <BookCopy />
+                                <span>Assignments</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/students')} tooltip="Students">
+                            <Link href="/dashboard/students">
+                                <Users />
+                                <span>Students</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                  </SidebarMenu>
-                  {userProfile?.role === 'educator' && (
-                  <>
-                  <SidebarGroup>
-                      <SidebarGroupLabel>Submissions</SidebarGroupLabel>
-                      <SidebarMenu>
-                          {isLoadingSubmissions && !submissions ? (
-                              <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading...</p>
-                          ) : submissions && submissions.length > 0 ? (
-                            <ScrollArea className="h-72">
-                              {submissions.map((sub: any) => (
-                                <SidebarMenuItem key={sub.id}>
-                                   <AlertDialog open={editingSubmission?.id === sub.id} onOpenChange={(isOpen) => !isOpen && setEditingSubmission(null)}>
-                                        <AlertDialogTrigger asChild>
-                                            <SidebarMenuButton variant="ghost" className="w-full justify-start text-left h-auto" onClick={() => setEditingSubmission(sub)}>
-                                                <div className="flex items-start gap-3">
-                                                    <GraduationCap className="mt-1"/>
-                                                    <div className="flex flex-col text-left group-data-[collapsible=icon]:hidden">
-                                                        <span className="font-medium">{sub.studentName}</span>
-                                                        <span className="text-xs text-muted-foreground">{sub.dsaConcept} - {sub.isPublished ? `${sub.score}%` : 'Pending'}</span>
-                                                    </div>
-                                                </div>
-                                            </SidebarMenuButton>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent className="max-w-2xl">
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>{sub.studentName}'s Submission for: {sub.dsaConcept}</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Submitted on {sub.submittedAt ? format(sub.submittedAt.toDate(), 'PPP') : ''}
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <ScrollArea className="max-h-[60vh]">
-                                                <div className="space-y-4 p-1">
-                                                    <div className="grid grid-cols-1 gap-4">
-                                                        <div>
-                                                            <Label htmlFor="score">AI-Assessed Score</Label>
-                                                            <Input 
-                                                                id="score"
-                                                                type="number"
-                                                                value={editableScore}
-                                                                onChange={(e) => setEditableScore(e.target.value)}
-                                                                className="font-bold text-lg"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <Label htmlFor="feedback">Feedback</Label>
-                                                            <Textarea
-                                                                id="feedback"
-                                                                value={editableFeedback}
-                                                                onChange={(e) => setEditableFeedback(e.target.value)}
-                                                                className="min-h-[150px]"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-semibold mb-2 mt-4">Submitted Code:</h4>
-                                                        <pre className="bg-muted p-4 rounded-md text-xs text-foreground overflow-x-auto"><code>{sub.solutionCode}</code></pre>
-                                                    </div>
-                                                </div>
-                                            </ScrollArea>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel onClick={() => setEditingSubmission(null)}>Close</AlertDialogCancel>
-                                                {!sub.isPublished ? (
-                                                    <Button onClick={() => handlePublishScore(sub)} disabled={isPublishing === sub.id}>
-                                                        {isPublishing === sub.id ? 'Publishing...' : <><Send className="mr-2 h-4 w-4" /> Publish Score</>}
-                                                    </Button>
-                                                ) : (
-                                                    <Button disabled>Already Published</Button>
-                                                )}
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </SidebarMenuItem>
-                              ))}
-                              </ScrollArea>
-                          ) : (
-                               <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
-                                  No submissions yet.
-                               </div>
-                          )}
-                      </SidebarMenu>
-                  </SidebarGroup>
-                  <SidebarGroup>
-                      <SidebarGroupLabel>Student Roster</SidebarGroupLabel>
-                        <SidebarMenu>
-                            {isLoadingRoster ? (
-                                <p className="p-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Loading Roster...</p>
-                            ) : roster && roster.length > 0 ? (
-                              <ScrollArea className="h-48">
-                                {roster.map((student: any) => (
-                                    <SidebarMenuItem key={student.id}>
-                                        <SidebarMenuButton 
-                                            variant="ghost" 
-                                            className="w-full justify-start"
-                                            tooltip={{
-                                                children: `${student.firstName} ${student.lastName} (${student.email})`,
-                                                side: 'right',
-                                            }}
-                                        >
-                                            <Users />
-                                            <span>{student.firstName} {student.lastName}</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
-                                </ScrollArea>
-                            ) : (
-                                <div className="p-4 text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg m-2 group-data-[collapsible=icon]:hidden">
-                                  No students in your roster.
-                               </div>
-                            )}
-                        </SidebarMenu>
-                  </SidebarGroup>
-                  </>
-                )}
             </SidebarContent>
-            <SidebarFooter className="p-2">
+            <SidebarFooter className="p-2 mt-auto">
                 <SidebarMenu>
                      <SidebarMenuItem>
-                        <div className='flex items-center gap-3 p-2'>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith('/dashboard/profile')} tooltip="Profile">
+                            <Link href="/dashboard/profile">
+                                <Settings />
+                                <span>Profile</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                         <div className='flex items-center gap-3 p-2 w-full'>
                              <Avatar className="h-8 w-8">
                                 <AvatarImage
                                 src={user.photoURL ?? ''}
                                 alt={userProfile?.firstName ?? user.email ?? ''}
                                 />
                                 <AvatarFallback>
-                                {userProfile?.firstName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
+                                {getInitials(userProfile?.firstName)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className='flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden'>
-                                <p className="text-sm font-medium leading-none truncate">
-                                    {userProfile?.firstName || 'User'}
-                                </p>
-                                <p className="text-xs leading-none text-muted-foreground truncate">
-                                    {user.email}
-                                </p>
-                            </div>
+                            <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground group-data-[collapsible=icon]:hidden">
+                                <LogOut/>
+                                <span>Log Out</span>
+                            </button>
                         </div>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton onClick={handleLogout} tooltip="Log Out">
-                            <LogOut />
-                            <span className="group-data-[collapsible=icon]:hidden">Log out</span>
-                        </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>
         </Sidebar>
-        <main className="flex-1">
+        <main className="flex-1 bg-background">
             <div className="p-4 md:p-8">
                  {children}
             </div>
@@ -334,5 +233,3 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
-
-    

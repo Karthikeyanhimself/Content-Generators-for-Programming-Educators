@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -49,14 +50,13 @@ export default function DashboardPage() {
   }
   
   const userRole = userData?.role;
-  const userName = userData ? `${(userData as any).firstName}` : 'User';
 
   return (
     <>
       <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold font-headline">Welcome back, {userName}!</h1>
-            <p className="text-muted-foreground">Here's your dashboard overview.</p>
+            <h1 className="text-3xl font-bold font-headline">Welcome back, siri!</h1>
+            <p className="text-muted-foreground">Here's your overview for today.</p>
           </div>
           <SidebarTrigger className="md:hidden"/>
       </div>
