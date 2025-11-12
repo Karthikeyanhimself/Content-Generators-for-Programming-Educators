@@ -1,4 +1,4 @@
-# Content Generators for Programming Educators
+# AI POWERED ASSESSMENT PLATFORM
 
 A toolkit for programming educators to create learning materials, assignments, and exercises efficiently.
 
